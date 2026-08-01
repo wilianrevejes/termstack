@@ -395,6 +395,15 @@ configure_shell() {
         {
           printf '\n%s\n' "$begin"
           msg_rc_migration_block "$repo_dir"
+          # The full config stays off (that is the two-compinit problem), but
+          # mise still has to be activated: without it the tools install and
+          # never reach PATH — the other half of what this block is for (see the
+          # header). $HOME/.local/bin goes first so mise itself is found on a
+          # machine that does not already have it on PATH.
+          # shellcheck disable=SC2016  # written to the rc literally, no expansion here
+          printf '%s\n' 'path=("$HOME/.local/bin" $path)'
+          # shellcheck disable=SC2016
+          printf '%s\n' 'command -v mise >/dev/null && eval "$(mise activate zsh)"'
           printf 'export EDITOR=nvim\n'
           printf 'export VISUAL=nvim\n'
           printf '%s\n' "$end"

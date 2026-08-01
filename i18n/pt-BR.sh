@@ -48,7 +48,7 @@ MSG_TOOLS_INSTALLING='instalando as CLI (mise/config.toml)'
 MSG_RC_CREATED='%s criado (máquina limpa)'
 MSG_RC_CONFIGURED='%s já configurado'
 MSG_RC_OWN_OMZ='%s tem oh-my-zsh/p10k próprios, config do repositório NÃO ativada'
-MSG_RC_OWN_OMZ_NOTE='só EDITOR foi configurado — a receita de migração está no bloco'
+MSG_RC_OWN_OMZ_NOTE='mise e EDITOR configurados para as ferramentas chegarem no PATH — a receita da config completa está no bloco'
 MSG_RC_LOADS='%s carrega a config do repositório'
 MSG_RC_BASH='%s configurado (mise + EDITOR)'
 

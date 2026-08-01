@@ -215,6 +215,20 @@ if group unidade "unit — _common.sh functions in isolation"; then
   fi
   rm -rf "$h"
 
+  # When ~/.zshrc already loads its own oh-my-zsh, the full config stays off
+  # (two compinit calls otherwise) — but mise still has to be activated, or the
+  # tools install and never reach PATH.
+  h="$(sandbox)"
+  printf 'source "$ZSH/oh-my-zsh.sh"\n' >"$h/.zshrc"
+  SHELL=/bin/zsh HOME="$h" bash -c "source '$repo_dir/scripts/_common.sh'; configure_shell '$repo_dir'" >/dev/null 2>&1
+  block="$(awk '/>>> termstack >>>/{f=1} f{print} /<<< termstack <<</{f=0}' "$h/.zshrc")"
+  if grep -q 'mise activate zsh' <<<"$block"; then
+    ok "configure_shell activates mise even when the rc keeps its own oh-my-zsh"
+  else
+    no "configure_shell left mise inactive — tools would stay off PATH"
+  fi
+  rm -rf "$h"
+
   # On macOS ~/.bashrc is not even read; creating one would be junk.
   h="$(sandbox)"
   SHELL=/bin/zsh HOME="$h" bash -c "source '$repo_dir/scripts/_common.sh'; configure_shell '$repo_dir'" >/dev/null 2>&1
