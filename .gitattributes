@@ -1,0 +1,7 @@
+# Without this, a clone on Windows with core.autocrlf=true writes CRLF into
+# the .sh scripts; running them under WSL or Linux then fails with
+# "bad interpreter: /usr/bin/env bash^M".
+* text=auto eol=lf
+
+# .ps1 is the opposite case: keep CRLF, which is what PowerShell expects.
+*.ps1 text eol=crlf

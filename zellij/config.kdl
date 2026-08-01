@@ -1,0 +1,145 @@
+// Zellij — base shared across the machines.
+// Lives at ~/.config/zellij/config.kdl (link to this repository's zellij/).
+// Requires Zellij >= 0.44. Validate with: zellij setup --check
+
+// Catppuccin comes built into Zellij, no need to download a theme or set
+// theme_dir.
+theme "catppuccin-mocha"
+
+// ── The core of the design ────────────────────────────────────────────────
+// Zellij is born LOCKED. In locked mode it captures no key at all beyond
+// the mode entry defined below: every Ctrl+* and Alt+* from default.kdl
+// lives inside `shared_except "locked"` blocks.
+//
+// The consequence is the whole point: Ctrl+h/j/k/l, Alt+j/k and company
+// arrive intact in Neovim. No navigation plugin, no subprocess per
+// keystroke, no "is this pane running nvim?" detection to break.
+default_mode "locked"
+
+// A single bar, at the bottom. No tab-bar on top.
+default_layout "compact"
+
+// Neovim already draws its own split dividers. A Zellij frame on top of
+// that is duplicated noise.
+pane_frames false
+
+show_startup_tips false
+
+// Ctrl+Space [ and then `e` opens the scrollback in the editor. Declared
+// here, and not left up to $EDITOR, because Zellij resolves the editor ONCE
+// at startup: if the variable is not set before it comes up, it falls back
+// to the literal "vi". Setting it here holds on all five machines without
+// depending on the shell's load order.
+scrollback_editor "nvim"
+
+// default_shell is not declared: the default is $SHELL, which is the right
+// one on each machine (zsh on macOS, bash on WSL).
+
+// ── Sessions ──────────────────────────────────────────────────────────────
+// Serialization is already the default; explicit here because it is
+// behavior that matters: a dead session stays in `zellij ls` and comes back
+// with attach.
+session_serialization true
+
+// Same conscious decision as tmux's capture-pane-contents: the visible text
+// of the panes goes to disk in plain text (~/Library/Caches or ~/.cache),
+// including any secret a command prints. The full visual restore is worth
+// the cost here; for layout only, switch it to false.
+serialize_pane_viewport true
+
+// Deliberately NOT defined:
+//
+//   copy_command  — the default is OSC 52, the only thing that crosses SSH
+//                   when the Zellij session is on a remote host. WezTerm
+//                   supports OSC 52 natively. `copy_command "pbcopy"`
+//                   would break the remote case and gain nothing locally.
+//
+//   theme_dark / theme_light — defining only one of the two makes Zellij
+//                   silently ignore both and fall back to `theme`.
+
+keybinds {
+    // Ctrl+Space enters tmux mode from ANY mode, locked included. Same
+    // prefix as tmux.conf: a single muscle memory for both multiplexers,
+    // which never run at the same time.
+    //
+    // The unbind is necessary because keybinds override the defaults key by
+    // key, not block by block: without it Ctrl+b would keep working too.
+    // And it has to be scoped here, not at the global `keybinds` level — the
+    // Ctrl+b is also PageScrollUp in the scroll and search modes, and a
+    // global unbind would kill page-up in both.
+    shared_except "tmux" {
+        unbind "Ctrl b"
+        bind "Ctrl Space" { SwitchToMode "Tmux"; }
+    }
+
+    // Esc always goes back to Locked. The default goes back to Normal, and
+    // in Normal Zellij reopens the capture of Ctrl+p/n/t/s/o over Neovim.
+    shared_except "locked" "tmux" {
+        bind "Esc" { SwitchToMode "Locked"; }
+    }
+
+    // clear-defaults PER MODE. The global one would also erase the
+    // `shared_except` blocks that give entry into every mode, and you would
+    // be left with no way out of whatever mode you were in.
+    //
+    // Every action ends in SwitchToMode "Locked", never "Normal".
+    tmux clear-defaults=true {
+        // "prefix prefix" sends the byte through, same as the
+        // `bind C-Space send-prefix` in tmux.conf.
+        bind "Ctrl Space" { Write 0; SwitchToMode "Locked"; }
+        bind "Esc" { SwitchToMode "Locked"; }
+
+        // Same mnemonic as tmux.conf and WezTerm: | side by side, - stacks.
+        bind "|" { NewPane "Right"; SwitchToMode "Locked"; }
+        bind "-" { NewPane "Down";  SwitchToMode "Locked"; }
+        bind "x" { CloseFocus;            SwitchToMode "Locked"; }
+        bind "z" { ToggleFocusFullscreen; SwitchToMode "Locked"; }
+        bind "f" { ToggleFloatingPanes;   SwitchToMode "Locked"; }
+
+        bind "h" { MoveFocus "Left";  SwitchToMode "Locked"; }
+        bind "j" { MoveFocus "Down";  SwitchToMode "Locked"; }
+        bind "k" { MoveFocus "Up";    SwitchToMode "Locked"; }
+        bind "l" { MoveFocus "Right"; SwitchToMode "Locked"; }
+
+        bind "c" { NewTab;          SwitchToMode "Locked"; }
+        bind "n" { GoToNextTab;     SwitchToMode "Locked"; }
+        bind "p" { GoToPreviousTab; SwitchToMode "Locked"; }
+
+        bind "[" { SwitchToMode "Scroll"; }   // exits with Esc -> Locked
+        bind "s" { SwitchToMode "Session"; }
+        bind "d" { Detach; }
+
+        // Session manager directly, without going through Session mode.
+        bind "w" { LaunchOrFocusPlugin "zellij:session-manager" { floating true; }; SwitchToMode "Locked"; }
+
+        // The cheatsheet, in a floating pane. It is the curated source of
+        // the four layers' keys and has a drift test against the real config.
+        //
+        // It is NOT zellij:configuration: that built-in plugin is the preset
+        // wizard ("Rebind leader keys" / "Change mode behavior") and lists no
+        // binding from this file — verified in a real session. And the
+        // third-party ones that would list them (zj-which-key,
+        // zellij-forgot) are .wasm from someone else's release, the same
+        // objection that took zjstatus out of here.
+        //
+        // `cd -P` resolves the ~/.config/zellij link to the repository, so it
+        // works wherever the clone is. `read -rsn1` holds the pane open until
+        // a keypress — without it the text vanishes that same instant.
+        bind "?" {
+            Run "bash" "-c" "cd -P \"$HOME/.config/zellij\" && bash ../scripts/cheatsheet.sh; read -rsn1" {
+                floating true
+                close_on_exit true
+                name "colinha"
+                // The floating pane default is 20 lines and the cheatsheet
+                // has 33: without this the top is born off screen. In
+                // percentages to follow the window instead of guessing
+                // columns.
+                height "95%"
+                width "95%"
+                x "2%"
+                y "2%"
+            }
+            SwitchToMode "Locked"
+        }
+    }
+}

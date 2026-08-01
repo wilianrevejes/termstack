@@ -1,0 +1,35 @@
+// Work layout: nvim on top, thin terminal at the bottom.
+//
+//   zj -n dev            new session with this layout (alias zj = zellij)
+//   zj -s NAME -n dev    same, with a name
+//
+// It is -n (--new-session-with-layout), not -l: outside a session -l does
+// work, but combined with -s it turns into "add tabs to the existing
+// session" and fails with "Session not found" — a gotcha documented in
+// --help.
+//
+// The bar comes in explicitly because a custom layout does not inherit the
+// one from default_layout "compact" — without this line the session opens
+// with no mode indicator, and the mode is precisely what says whether
+// Ctrl+Space was captured.
+layout {
+    pane size=1 borderless=true {
+        plugin location="zellij:compact-bar"
+    }
+
+    // close_on_exit: quitting nvim closes the pane instead of leaving the
+    // "EXIT CODE 0" corpse waiting for Enter.
+    pane command="nvim" focus=true close_on_exit=true
+
+    pane size="20%"
+
+    // Without this, the panes above become the model for EVERY new tab:
+    // Ctrl+Space c would open another nvim+terminal. A new tab is the bar
+    // and a shell, that is all.
+    new_tab_template {
+        pane size=1 borderless=true {
+            plugin location="zellij:compact-bar"
+        }
+        pane
+    }
+}

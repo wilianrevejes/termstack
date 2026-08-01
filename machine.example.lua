@@ -1,0 +1,102 @@
+-- Tweaks for this machine. Copy to `machine.lua` (Git-ignored) and edit it.
+--
+-- Two possible forms:
+--
+--   1. Return a table    -> the keys override the shared config.
+--   2. Return a function -> receives (config, wezterm) and can touch lists,
+--      keybindings and anything a shallow key merge cannot reach.
+--
+-- This file is the only place in the repository where anything work-specific
+-- goes in. It is not versioned — see the README.
+
+-- ── Form 1: table ─────────────────────────────────────────────────────────
+
+return {
+  font_size = 13,
+}
+
+-- ── Per-machine examples ──────────────────────────────────────────────────
+--
+-- Work MacBook (opaque window, no blur — more predictable on calls and in
+-- screen share):
+--
+--   return {
+--     font_size = 13,
+--     window_background_opacity = 1.0,
+--     macos_window_background_blur = 0,
+--   }
+--
+-- Personal MacBook:
+--
+--   return {
+--     font_size = 14,
+--     window_background_opacity = 0.94,
+--     macos_window_background_blur = 25,
+--   }
+--
+-- Windows PC with WSL as the default shell. Check the exact domain name with
+-- `wsl --list --verbose`; the domain is 'WSL:' + the distro name:
+--
+--   return {
+--     font_size = 12,
+--     default_domain = 'WSL:Ubuntu',
+--   }
+--
+-- Native Linux (enable_wayland is already true by default; only declare it
+-- to force X11 when Wayland gives you trouble):
+--
+--   return {
+--     font_size = 12,
+--     enable_wayland = false,
+--   }
+
+-- ── Window ────────────────────────────────────────────────────────────────
+--
+-- The base config opens WezTerm already in fullscreen. To turn it off only
+-- on this machine (useful on an external monitor, or when you use the
+-- terminal next to another window), declare the global BEFORE the return:
+--
+--   WEZTERM_START_FULLSCREEN = false
+--
+--   return {
+--     font_size = 14,
+--   }
+
+-- ── Neovim / LazyVim ──────────────────────────────────────────────────────
+--
+-- `term = 'wezterm'` enables undercurl and colored underline, which LazyVim
+-- uses to mark diagnostic errors and warnings. It lives in machine.lua
+-- because it requires WezTerm's terminfo installed ON THE MACHINE WHERE NVIM
+-- RUNS — which includes every WSL distro and every host reached over ssh.
+-- With the terminfo missing, the session comes up corrupted.
+--
+-- Install the terminfo first (runs the same on macOS, Linux and WSL):
+--
+--   tempfile=$(mktemp) \
+--     && curl -fsSL -o "$tempfile" \
+--        https://raw.githubusercontent.com/wezterm/wezterm/main/termwiz/data/wezterm.terminfo \
+--     && tic -x -o ~/.terminfo "$tempfile" \
+--     && rm "$tempfile"
+--
+-- Check it with `infocmp wezterm | head -1` and only then:
+--
+--   return {
+--     term = 'wezterm',
+--   }
+
+-- ── Form 2: function ──────────────────────────────────────────────────────
+--
+-- Use it when you need to add keybindings instead of replacing the whole
+-- list:
+--
+--   return function(config, wezterm)
+--     config.font_size = 14
+--
+--     table.insert(config.keys, {
+--       key = 'o',
+--       mods = 'LEADER',
+--       action = wezterm.action.SpawnCommandInNewTab({
+--         args = { 'btop' },
+--       }),
+--     })
+--   end

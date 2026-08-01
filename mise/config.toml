@@ -1,0 +1,31 @@
+# Command-line tools of the stack, always on the newest version.
+#
+# mise downloads a prebuilt binary into ~/.local, no sudo and no compiling —
+# that is what makes the corporate Mac, where Homebrew demands sudo for the
+# default prefix, use exactly the same path as the other four machines.
+#
+# This file is linked at ~/.config/mise/config.toml by the bootstrap. Running
+# `mise use -g <tool>` writes in here, so the list stays versioned along with
+# the rest — same idea as Neovim's lazy-lock.json and the @plugin lines in
+# tmux.conf.
+#
+# WezTerm is left out: it is not in the mise registry, and it is a GUI app.
+
+[tools]
+neovim = "latest"
+zellij = "latest"
+tmux = "latest"
+lazygit = "latest"
+ripgrep = "latest"
+fd = "latest"
+
+# Shell: history and navigation.
+fzf = "latest"
+zoxide = "latest"
+bat = "latest"
+
+# lts, not latest: it is the version the projects expect. Where there is nvm
+# in the rc (machine with globals tied to it, like the TV CLI), the rc's own
+# wrapper functions still win in the interactive shell — this one applies to
+# the machines without nvm and to non-interactive scripts.
+node = "lts"

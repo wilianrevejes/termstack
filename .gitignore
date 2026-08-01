@@ -1,0 +1,13 @@
+machine.lua
+
+# Plugins cloned by the bootstrap.
+tmux/plugins/
+zsh/custom/
+
+# Snapshots scripts/update.sh takes before touching anything.
+# Kept as a safety net: older versions wrote here, and a stray copy of your
+# $HOME must never reach a public repository.
+.backup/
+
+.DS_Store
+*.log

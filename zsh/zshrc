@@ -1,0 +1,163 @@
+#!/usr/bin/env zsh
+# termstack — interactive zsh.
+#
+# This file is NOT your ~/.zshrc. It is sourced from it, by a marked block
+# that the bootstrap writes — that way your ~/.zshrc stays yours, and an
+# installer that appends a line (nvm, rustup, sdkman) keeps working.
+# See scripts/_common.sh, configure_shell().
+
+# ── Cheatsheet on every new WezTerm shell ─────────────────────────────────
+# Above the instant prompt on purpose: printing BEFORE the block is the
+# pattern p10k supports; after it, any output triggers the console output
+# warning. Panes inside Zellij/tmux are left out — otherwise every split
+# would reprint the ~75 lines.
+if [[ -n "$WEZTERM_PANE" && -z "$ZELLIJ" && -z "$TMUX" ]]; then
+  [[ -r "${0:A:h:h}/scripts/cheatsheet.sh" ]] && bash "${0:A:h:h}/scripts/cheatsheet.sh"
+fi
+
+# ── Instant prompt: from here down, nothing may print ─────────────────────
+# Copied verbatim from the powerlevel10k README. Do not swap `source` for
+# anything else, do not call zcompile, do not redirect — `p10k configure`
+# matches this block by verbatim text, and an edited block reads as absent
+# (it prepends a second one).
+#
+# The real rule is not "nothing may print before": it is "nothing may READ
+# from the console after". During initialization stdin goes to /dev/null.
+# Code that only prints works; `ssh-add`, `keychain` or any [y/n] HANGS, and
+# has to sit above the `source` of this file, back in your ~/.zshrc.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# Directory of this file. The clone can live anywhere.
+ZSH_CFG="${0:A:h}"
+
+# ── PATH ──────────────────────────────────────────────────────────────────
+# typeset -U dedupes on its own; without it PATH grows on every nested shell.
+typeset -U path PATH
+path=("$HOME/.local/bin" $path)
+
+# ── EDITOR ────────────────────────────────────────────────────────────────
+# Not a preference: Zellij resolves the scrollback editor ONCE, at startup,
+# and falls back to the literal 'vi' if the variable does not exist by then.
+#
+# It goes before oh-my-zsh because the `bindkey -e` in lib/key-bindings.zsh
+# has to run AFTER — with EDITOR containing 'vi', zsh picks vi-mode if
+# nothing declares emacs explicitly.
+export EDITOR=nvim
+export VISUAL=nvim
+
+# ── mise ──────────────────────────────────────────────────────────────────
+# Before oh-my-zsh: its compinit scans the fpath, and what mise adds has to
+# already be there. Do not use the omz `mise` plugin — it does this same
+# eval again, paid for twice.
+command -v mise >/dev/null && eval "$(mise activate zsh)"
+
+# ── oh-my-zsh ─────────────────────────────────────────────────────────────
+# The framework lives OUTSIDE the repository: it is a git repo of its own,
+# and nesting it here would turn into an accidental submodule (besides
+# ZSH_CACHE_DIR dirtying the repo). What is ours lives inside: ZSH_CUSTOM
+# points at zsh/custom, where the bootstrap clones the theme and the plugins.
+export ZSH="$HOME/.oh-my-zsh"
+ZSH_CUSTOM="$ZSH_CFG/custom"
+ZSH_THEME="powerlevel10k/powerlevel10k"
+
+# Updating is scripts/update.sh's job, and it snapshots first. Without this
+# omz asks on its own every 13 days and will even `exec -l` in the middle of
+# your session.
+#
+# Beware the naming confusion: `DISABLE_UPDATE_PROMPT=true` maps to mode
+# `auto` (updates silently), not to off. Off is `disabled`.
+zstyle ':omz:update' mode disabled
+
+# The omz "magic functions" rewrite every paste to escape URLs. With
+# syntax-highlighting on, pasting 200 lines stalls for seconds.
+DISABLE_MAGIC_FUNCTIONS=true
+
+# Three plugins.
+#
+# `git` is the real reason to adopt the framework: 197 aliases and 17
+# functions. There is no omz plugin for zellij, lazygit or neovim — checked
+# across the 357 on master; hence the inline aliases further down.
+#
+# zsh-syntax-highlighting is ALWAYS last. Its INSTALL.md says, verbatim:
+# "Note that zsh-syntax-highlighting must be the last plugin sourced." It
+# wraps the ZLE widgets a single time, at source time, with no rebind in
+# precmd — a widget created afterwards is not colored.
+plugins=(
+  git
+  zsh-autosuggestions
+  zsh-syntax-highlighting
+)
+
+ZSH_AUTOSUGGEST_STRATEGY=(history)   # 'completion' is the expensive strategy
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+
+source "$ZSH/oh-my-zsh.sh"
+
+# ── What oh-my-zsh does not do ────────────────────────────────────────────
+# Its lib/history.zsh raises HISTSIZE to 50000 but leaves SAVEHIST at 10000,
+# and turns on hist_expire_dups_first. These have to come AFTER the source to
+# take effect.
+SAVEHIST=50000                # same as HISTSIZE, no expiry by duplicate
+setopt HIST_IGNORE_ALL_DUPS   # covers hist_ignore_dups: drops the old one too
+unsetopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_SAVE_NO_DUPS HIST_FIND_NO_DUPS HIST_REDUCE_BLANKS
+
+setopt NO_BEEP                # the macOS /etc/zshrc turns BEEP on
+setopt PUSHD_SILENT           # omz turns on auto_pushd and does not mute it
+setopt NUMERIC_GLOB_SORT      # file2 before file10
+
+# Navigate the completion menu with hjkl (complist comes from
+# lib/completion.zsh).
+bindkey -M menuselect 'h' vi-backward-char
+bindkey -M menuselect 'l' vi-forward-char
+bindkey -M menuselect 'k' vi-up-line-or-history
+bindkey -M menuselect 'j' vi-down-line-or-history
+
+# ── fzf and zoxide ────────────────────────────────────────────────────────
+# After oh-my-zsh: the fzf bindings (Ctrl+R history, Ctrl+T file, Alt+C cd)
+# have to beat the ones from lib/key-bindings.zsh. PATH already resolves the
+# binaries here: the `mise activate` above does the first hook-env right away.
+if command -v fzf >/dev/null; then
+  source <(fzf --zsh)
+
+  # fd respects .gitignore and is what is already installed — fzf's find
+  # does not.
+  export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+fi
+
+# z DIR jumps to the most frecent directory that matches. zi opens the choice.
+command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
+
+# ── Aliases ───────────────────────────────────────────────────────────────
+alias lg='lazygit'
+alias zj='zellij'
+alias v='nvim'
+alias vim='nvim'
+
+# Cheatsheet of the keys and commands of the four layers.
+alias stack="bash ${ZSH_CFG:h}/scripts/cheatsheet.sh"
+
+# ── Prompt ────────────────────────────────────────────────────────────────
+# After oh-my-zsh.sh: the footer of p10k.zsh calls `p10k reload`, which is a
+# silent no-op if the theme has not loaded yet.
+#
+# Two files on purpose: `p10k configure` REWRITES the whole p10k.zsh, from
+# scratch. A color edited in there dies at the first wizard; in the
+# overrides, it does not.
+[[ -r $ZSH_CFG/p10k.zsh ]] && source $ZSH_CFG/p10k.zsh
+[[ -r $ZSH_CFG/p10k-overrides.zsh ]] && source $ZSH_CFG/p10k-overrides.zsh
+
+# If p10k.zsh goes missing (partial clone, zsh/custom out of sync), p10k
+# fires the interactive wizard on its own on a new machine — it auto-fires
+# when no POWERLEVEL9K_* is defined.
+POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+
+# ── Tweaks for this machine ───────────────────────────────────────────────
+# The shell equivalent of machine.lua: outside git, gone on a fresh clone.
+# Last so it can override anything above, including POWERLEVEL9K_*. Careful:
+# a `zle -N` here will not be colored by syntax-highlighting, which has
+# already loaded along with the plugins.
+[[ -r $HOME/.zshrc.local ]] && source $HOME/.zshrc.local
