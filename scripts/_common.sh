@@ -174,21 +174,27 @@ ui_ask() {
 # linked at ~/.config/mise/config.toml. `mise use -g` writes into that file, so
 # adding a tool on one machine reaches the others through git pull.
 
-# repository|destination, for zsh.
+# repository|destination|commit, for zsh.
 #
 # oh-my-zsh lives OUTSIDE the repo: it is a git repository of its own, and
 # nesting it here would make it an accidental submodule — plus its
 # ZSH_CACHE_DIR (`$ZSH/cache`) would start polluting ours. The theme and the
 # plugins live INSIDE, in zsh/custom, which is the ZSH_CUSTOM the zshrc points
 # at.
+#
+# The commit pins the exact version, the same discipline as the #tags in
+# tmux.conf. These four used to float on HEAD, updated with reset --hard on
+# every run of update.sh — which is code straight into the shell of five
+# machines the moment any of the four upstreams turns malicious. To bump one:
+# look at the upstream changelog, swap the id here, run update.sh.
 zsh_repos() {
   local repo_dir="$1"
 
   cat <<EOF
-ohmyzsh/ohmyzsh|$HOME/.oh-my-zsh
-romkatv/powerlevel10k|$repo_dir/zsh/custom/themes/powerlevel10k
-zsh-users/zsh-autosuggestions|$repo_dir/zsh/custom/plugins/zsh-autosuggestions
-zsh-users/zsh-syntax-highlighting|$repo_dir/zsh/custom/plugins/zsh-syntax-highlighting
+ohmyzsh/ohmyzsh|$HOME/.oh-my-zsh|c5ba74cf02cce4c342153f79089100194f30940f
+romkatv/powerlevel10k|$repo_dir/zsh/custom/themes/powerlevel10k|9253fb1c5034410c43a0c681ff8294181c54016c
+zsh-users/zsh-autosuggestions|$repo_dir/zsh/custom/plugins/zsh-autosuggestions|85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5
+zsh-users/zsh-syntax-highlighting|$repo_dir/zsh/custom/plugins/zsh-syntax-highlighting|1d85c692615a25fe2293bdd44b34c217d5d2bf04
 EOF
 }
 
@@ -436,29 +442,38 @@ configure_shell() {
 # it overwrites even more silently; it exits 1 if $ZSH already exists; and an
 # unknown argument is swallowed without an error.
 #
+# Puts $dir at exactly $sha, cloning first when the directory is missing.
+# GitHub serves a fetch of a bare commit id (uploadpack.allowAnySHA1InWant),
+# so neither branch nor tag takes part — an upstream tag can be moved or
+# deleted after the fact, a commit id cannot.
+#
 # fetch + reset --hard instead of `git pull`: a pull on a shallow clone gives
 # no reliable exit code. The reset touches neither untracked nor ignored
 # files, and `custom/` is in oh-my-zsh's own .gitignore — so a pre-existing
 # ~/.oh-my-zsh/custom of the user's survives intact.
+repo_at_sha() {
+  local owner_repo="$1" dir="$2" sha="$3"
+
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir" &&
+      git init -q "$dir" &&
+      git -C "$dir" remote add origin "https://github.com/$owner_repo" ||
+      return 1
+  fi
+
+  git -C "$dir" fetch -q --depth 1 origin "$sha" &&
+    git -C "$dir" reset -q --hard "$sha"
+}
+
 sync_zsh_repos() {
   local repo_dir="$1"
-  local owner_repo dir name failed=0
+  local owner_repo dir sha name failed=0
 
-  while IFS='|' read -r owner_repo dir; do
+  while IFS='|' read -r owner_repo dir sha; do
     [[ -n "$owner_repo" ]] || continue
     name="${owner_repo##*/}"
 
-    if [[ ! -d "$dir" ]]; then
-      mkdir -p "$(dirname "$dir")"
-
-      if git clone -q --depth 1 "https://github.com/$owner_repo" "$dir"; then
-        ui_ok "$MSG_REPO_INSTALLED" "$name"
-      else
-        ui_bad "$MSG_REPO_CLONE_FAILED" "$name"
-        failed=1
-      fi
-
-    elif ! git -C "$dir" diff --quiet HEAD 2>/dev/null; then
+    if [[ -d "$dir" ]] && ! git -C "$dir" diff --quiet HEAD 2>/dev/null; then
       # Dirty tree: someone edited a file of the framework itself. `reset
       # --hard` would discard that without leaving a copy. Deciding on behalf
       # of whoever edited it is not our job — warn and skip.
@@ -468,9 +483,11 @@ sync_zsh_repos() {
       ui_warn "$MSG_REPO_DIRTY" "$name"
       ui_note "$MSG_REPO_DIRTY_NOTE" "$dir"
 
-    elif git -C "$dir" fetch -q --depth 1 origin &&
-      git -C "$dir" reset -q --hard FETCH_HEAD; then
-      ui_ok "$MSG_REPO_UPDATED" "$name"
+    elif [[ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" == "$sha" ]]; then
+      ui_skip "$MSG_REPO_PINNED" "$name" "${sha:0:12}"
+
+    elif repo_at_sha "$owner_repo" "$dir" "$sha"; then
+      ui_ok "$MSG_REPO_INSTALLED_REF" "$name" "${sha:0:12}"
 
     else
       ui_bad "$MSG_REPO_UPDATE_FAILED" "$name"
@@ -570,6 +587,21 @@ sync_tmux_plugins() {
     # tmux.conf depend on that layout.
     name="${owner_repo##*/}"
     dir="$plugins_dir/$name"
+
+    # Commit pin, for an upstream that publishes no tag at all (tmux-cpu).
+    # Same mechanics as the zsh repos: fetch of the exact commit, reset onto
+    # it. Only a full 40-hex id lands here — nothing that could be confused
+    # with a tag name.
+    if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+      if [[ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" == "$ref" ]]; then
+        ui_skip "$MSG_REPO_PINNED" "$name" "${ref:0:12}"
+      elif repo_at_sha "$owner_repo" "$dir" "$ref"; then
+        ui_ok "$MSG_REPO_INSTALLED_REF" "$name" "${ref:0:12}"
+      else
+        ui_bad "$MSG_REPO_UPDATE_FAILED" "$name"
+      fi
+      continue
+    fi
 
     if [[ ! -d "$dir" ]]; then
       if [[ -n "$ref" ]]; then
