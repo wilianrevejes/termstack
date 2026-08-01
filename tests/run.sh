@@ -229,6 +229,25 @@ if group unidade "unit — _common.sh functions in isolation"; then
   fi
   rm -rf "$h"
 
+  # A re-run must REFRESH the block, not skip it: an old EDITOR-only block has
+  # to gain the mise activation, and the count stays 1. This is the whole point
+  # of pulling the fix and running setup.sh again.
+  h="$(sandbox)"
+  {
+    printf 'source "$ZSH/oh-my-zsh.sh"\n'
+    printf '# >>> termstack >>>\n'
+    printf 'export EDITOR=nvim\n'
+    printf '# <<< termstack <<<\n'
+  } >"$h/.zshrc"
+  SHELL=/bin/zsh HOME="$h" bash -c "source '$repo_dir/scripts/_common.sh'; configure_shell '$repo_dir'" >/dev/null 2>&1
+  nblocks="$(grep -c '>>> termstack >>>' "$h/.zshrc")"
+  if grep -q 'mise activate zsh' "$h/.zshrc" && [[ "$nblocks" == 1 ]]; then
+    ok "configure_shell refreshes a stale block on re-run (mise added, still 1 block)"
+  else
+    no "configure_shell did not refresh the stale block" "mise:$(grep -c 'mise activate' "$h/.zshrc") blocks:$nblocks"
+  fi
+  rm -rf "$h"
+
   # On macOS ~/.bashrc is not even read; creating one would be junk.
   h="$(sandbox)"
   SHELL=/bin/zsh HOME="$h" bash -c "source '$repo_dir/scripts/_common.sh'; configure_shell '$repo_dir'" >/dev/null 2>&1

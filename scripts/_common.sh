@@ -377,9 +377,22 @@ configure_shell() {
       ui_ok "$MSG_RC_CREATED" "$name"
     fi
 
+    # A previous run's block (current or legacy marker) is stripped here and
+    # rewritten below, so a re-run picks up changes to the block instead of
+    # skipping it forever. ONLY our own delimited block is removed; every other
+    # line is preserved, and the blank lines around the block are collapsed so
+    # it does not drift down the file on each run.
     if grep -qF "$begin" "$rc" || grep -qF "$legacy_begin" "$rc"; then
-      ui_skip "$MSG_RC_CONFIGURED" "$name"
-      continue
+      local tmp
+      tmp="$(mktemp)"
+      awk '
+        /^# >>> (termstack|wezterm-config) >>>$/ { drop = 1; b = 0; next }
+        /^# <<< (termstack|wezterm-config) <<<$/ { drop = 0; next }
+        drop { next }
+        /^[[:space:]]*$/ { b++; next }
+        { for (; b > 0; b--) print ""; print }
+      ' "$rc" >"$tmp" && cat "$tmp" >"$rc"
+      rm -f "$tmp"
     fi
 
     if [[ "$name" == .zshrc ]]; then
