@@ -158,14 +158,24 @@ if group estatico "static — is the code even valid?"; then
   # own parser (the analogue of bash -n / luac -p). Skipped where pwsh is
   # absent, like the author's macOS/Linux boxes.
   if command -v pwsh >/dev/null 2>&1; then
-    for f in bootstrap-windows.ps1 setup-windows.ps1; do
+    for f in scripts/bootstrap-windows.ps1 scripts/setup-windows.ps1 pwsh/profile.ps1; do
       if (cd "$repo_dir" && pwsh -NoProfile -NonInteractive -Command \
-        "\$t=\$null;\$e=\$null;[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/$f'),[ref]\$t,[ref]\$e)>\$null;exit([int](\$e.Count -gt 0))") 2>/dev/null; then
-        ok "powershell syntax: $f"
+        "\$t=\$null;\$e=\$null;[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '$f'),[ref]\$t,[ref]\$e)>\$null;exit([int](\$e.Count -gt 0))") 2>/dev/null; then
+        ok "powershell syntax: $(basename "$f")"
       else
-        no "powershell syntax: $f"
+        no "powershell syntax: $(basename "$f")"
       fi
     done
+
+    # The generated Windows zellij config must inject default_shell (the shared
+    # config.kdl leaves it as $SHELL, wrong on native Windows) and keep the
+    # keybinds. -EmitZellijConfig prints it without touching the machine.
+    zc="$(cd "$repo_dir" && pwsh -NoProfile -NonInteractive -File scripts/setup-windows.ps1 -EmitZellijConfig 2>/dev/null)"
+    if grep -qE '^default_shell ' <<<"$zc" && grep -q 'SwitchToMode' <<<"$zc"; then
+      ok "zellij Windows config generates (default_shell + keybinds)"
+    else
+      no "zellij Windows config generation is broken"
+    fi
   else
     na "pwsh not installed (PowerShell scripts not parsed)"
   fi

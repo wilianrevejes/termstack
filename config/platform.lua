@@ -29,11 +29,12 @@ function M.apply(config, wezterm)
     -- Adjust it by what you see on each machine's monitor.
     config.font_size = 12
 
-    -- default_prog is deliberately not set here: it is ignored when
-    -- default_domain points at a WSL domain, and the combination of the two
-    -- produces confusing behavior (wezterm/wezterm#6147). What picks the
-    -- PC's default shell is default_domain in machine.lua; the launcher
-    -- below covers the one-off cases.
+    -- pwsh is the native default shell. It is IGNORED when machine.lua sets a
+    -- WSL default_domain (the two together misbehave, wezterm/wezterm#6147) --
+    -- that WSL domain is the intended override for a WSL-first machine. The
+    -- launcher below still covers the one-off shells.
+    config.default_prog = { 'pwsh.exe', '-NoLogo' }
+
     config.launch_menu = {
       {
         label = 'PowerShell 7',

@@ -64,6 +64,22 @@ function Install-IfMissing {
 Install-IfMissing -Id "wez.wezterm" -Name "WezTerm"
 Install-IfMissing -Id "DEVCOM.JetBrainsMonoNerdFont" -Name "JetBrainsMono Nerd Font"
 
+# The native CLI stack: Zellij (native on Windows since v0.44), Neovim, and the
+# tools LazyVim/the shell reach for. tmux and zsh are Unix-only and are left to
+# the separate Linux setup (scripts/setup.sh, run inside WSL).
+Install-IfMissing -Id "Neovim.Neovim" -Name "Neovim"
+Install-IfMissing -Id "Zellij.Zellij" -Name "Zellij"
+Install-IfMissing -Id "Git.Git" -Name "Git"
+Install-IfMissing -Id "BurntSushi.ripgrep.MSVC" -Name "ripgrep"
+Install-IfMissing -Id "sharkdp.fd" -Name "fd"
+Install-IfMissing -Id "JesseDuffield.lazygit" -Name "lazygit"
+Install-IfMissing -Id "junegunn.fzf" -Name "fzf"
+Install-IfMissing -Id "ajeetdsouza.zoxide" -Name "zoxide"
+Install-IfMissing -Id "sharkdp.bat" -Name "bat"
+Install-IfMissing -Id "OpenJS.NodeJS" -Name "Node.js"
+# The C compiler nvim-treesitter needs to build parsers.
+Install-IfMissing -Id "zig.zig" -Name "zig (C compiler)"
+
 $machine = Join-Path $repoDir "machine.lua"
 
 if (Test-Path $machine) {

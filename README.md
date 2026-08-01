@@ -38,7 +38,7 @@ bash scripts/setup.sh
 ```powershell
 git clone "git@github.com:YOUR-USER/termstack.git" "$HOME\.config\wezterm"
 Set-Location "$HOME\.config\wezterm"
-.\scripts\setup-windows.ps1     # the Windows entry point (mirrors setup.sh)
+.\scripts\setup-windows.ps1     # native Windows stack: WezTerm + Zellij + Neovim + pwsh
 ```
 
 If Windows PowerShell 5.1 refuses with "running scripts is disabled on this system", start it from a terminal instead: `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1`.
@@ -75,14 +75,16 @@ The powerlevel10k wizard **does not detect fonts** — it records the mode based
 
 That is why step 4 only *offers* the wizard, with a warning: run it inside a WezTerm that already has the font. It rewrites the **repository's** `zsh/p10k.zsh` (not `~/.p10k.zsh`), so one answer covers every machine once you commit it.
 
-Windows spans two file systems: WezTerm and the font run **on Windows**, the CLI layer runs **inside a WSL distro**. They are **two separate setups**. `setup-windows.ps1` handles the Windows half only — diagnose, install WezTerm + the font (through `bootstrap-windows.ps1`), verify the WezTerm layer — and then points you at the WSL half. For that, open your distro and run the Linux setup there, cloned onto the distro filesystem (not `/mnt/c`):
+Windows has **two independent setups**. `setup-windows.ps1` installs the **native** stack via winget — WezTerm, the Nerd Font, **Zellij** (native since v0.44), **Neovim/LazyVim**, and the CLI tools (ripgrep, fd, lazygit, fzf, zoxide, bat, node, plus `zig` for treesitter) — wires their configs, and runs **pwsh** as the shell. No WSL required. What the native flow does **not** include: **zsh/oh-my-zsh/powerlevel10k** and **tmux**, which are Unix-only.
+
+For that zsh/tmux layer, run the **Linux setup** inside a WSL distro (or any Linux), on the distro filesystem (not `/mnt/c`):
 
 ```bash
 git clone <repo> ~/.config/wezterm
 cd ~/.config/wezterm && bash scripts/setup.sh
 ```
 
-It detects WSL and skips WezTerm, since rendering there is done by the Windows WezTerm.
+It detects WSL and skips WezTerm, since rendering there is done by the Windows WezTerm. WezTerm's launcher (`Ctrl+a` then `Space`) lists both pwsh and every installed WSL distro, so you can keep both worlds on one machine.
 
 After bootstrap, reopen the shell (`exec $SHELL`) so `mise` lands on your `PATH`.
 
