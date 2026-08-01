@@ -292,7 +292,8 @@ And read `zsh/zshrc`, `zellij/config.kdl` and `config/keys.lua` first — the ke
 
 ## License and attribution
 
-MIT for everything original here — see [`LICENSE`](LICENSE).
+MIT for everything original here — see [`LICENSE`](LICENSE). Attribution for
+third-party material is in [`NOTICE`](NOTICE).
 
 Two sets of files come from other projects and keep their own licenses; the
 MIT above does not relicense them:
