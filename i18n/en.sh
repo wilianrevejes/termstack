@@ -532,6 +532,7 @@ msg_cheatsheet() {
     ${d}WezTerm only${r}  ${b}H J K L${r} resize   ${b}1${r}…${b}9${r} tab N   ${b}space${r} launcher
                   ${b}Ctrl+a${r} again sends a literal Ctrl+a to the shell
     ${d}Zellij only${r}   ${b}f${r} floating   ${b}s${r} sessions   ${b}w${r} manager   ${b}Esc${r} lock
+                  ${b}space${r} cycle layout ${d}(vertical / horizontal / stacked)${r}
                   ${d}zj -n dev opens nvim+terminal · zj attach NAME · zj ls${r}
 
   ${b}LazyVim — Space, then${r}

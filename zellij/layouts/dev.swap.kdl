@@ -1,0 +1,56 @@
+// Swap layouts for dev.kdl — the alternatives Ctrl+Space Space cycles
+// through (NextSwapLayout).
+//
+// Zellij picks this file up by name: `<layout>.swap.kdl` next to
+// `<layout>.kdl`. There is no line in dev.kdl pointing here, and there is no
+// way to point at it either — the convention IS the wiring.
+//
+// dev.kdl itself is the first state (nvim on top, thin terminal below). Each
+// swap_tiled_layout below is another one, and Zellij only offers those whose
+// max_panes/min_panes match the current pane count.
+//
+// The panes are not recreated between states: nvim keeps running, it just
+// moves. What changes is the geometry, not the processes.
+
+// The bar comes back in every state, and on top, the same as in dev.kdl:
+// `children` after it puts the real panes below the bar. Reversing the two
+// lines moves the bar to the bottom.
+tab_template name="ui" {
+    pane size=1 borderless=true {
+        plugin location="zellij:compact-bar"
+    }
+    children
+}
+
+// Side by side, for wide screens: nvim on the left, terminal on the right.
+// 35% is wider than the 20% of the horizontal state because a column of text
+// wraps much sooner than a strip of it.
+swap_tiled_layout name="vertical" {
+    ui {
+        pane split_direction="vertical" {
+            pane
+            pane size="35%" { children; }
+        }
+    }
+}
+
+// The same split as dev.kdl, declared explicitly so that the cycle comes
+// back to it instead of ending at the last state.
+swap_tiled_layout name="horizontal" {
+    ui {
+        pane
+        pane size="20%" { children; }
+    }
+}
+
+// From the third pane onwards, stacking beats splitting: nvim keeps the left
+// half and every terminal piles up on the right, one title bar each, only
+// the focused one open.
+swap_tiled_layout name="stacked" {
+    ui min_panes=3 {
+        pane split_direction="vertical" {
+            pane
+            pane stacked=true { children; }
+        }
+    }
+}

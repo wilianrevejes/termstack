@@ -493,6 +493,7 @@ msg_cheatsheet() {
     ${d}só WezTerm${r}  ${b}H J K L${r} redimensiona   ${b}1${r}…${b}9${r} aba N   ${b}espaço${r} launcher
                 ${b}Ctrl+a${r} de novo manda Ctrl+a literal para o shell
     ${d}só Zellij${r}   ${b}f${r} flutuante   ${b}s${r} sessões   ${b}w${r} gerenciador   ${b}Esc${r} trava
+                ${b}espaço${r} cicla layout ${d}(vertical / horizontal / empilhado)${r}
                 ${d}zj -n dev abre nvim+terminal · zj attach NOME · zj ls${r}
 
   ${b}LazyVim — Espaço e depois${r}

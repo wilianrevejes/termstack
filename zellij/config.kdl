@@ -96,6 +96,19 @@ keybinds {
         bind "z" { ToggleFocusFullscreen; SwitchToMode "Locked"; }
         bind "f" { ToggleFloatingPanes;   SwitchToMode "Locked"; }
 
+        // tmux's prefix + Space. Zellij binds Space to this by default in
+        // its own tmux mode, but the clear-defaults above wiped it, and the
+        // other default route (Alt+[ / Alt+]) sits in `shared_except
+        // "locked"` — that is, dead in exactly the mode this config lives in.
+        //
+        // It is not tmux's next-layout: there is no even-h/even-v/tiled
+        // algorithm here, only the presets the layout itself declares. The
+        // built-in `compact` of default_layout ships three (vertical,
+        // horizontal, stacked); the work layout gets its own in
+        // layouts/dev.swap.kdl. A layout without swap layouts makes this key
+        // a no-op.
+        bind "Space" { NextSwapLayout; SwitchToMode "Locked"; }
+
         bind "h" { MoveFocus "Left";  SwitchToMode "Locked"; }
         bind "j" { MoveFocus "Down";  SwitchToMode "Locked"; }
         bind "k" { MoveFocus "Up";    SwitchToMode "Locked"; }
