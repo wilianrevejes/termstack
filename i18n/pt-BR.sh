@@ -118,7 +118,7 @@ msg_setup_usage() {
 }
 
 MSG_SETUP_UNSUPPORTED='Sistema não suportado por este script: %s'
-MSG_SETUP_WINDOWS='No Windows, rode:  .\scripts\bootstrap-windows.ps1'
+MSG_SETUP_WINDOWS='No Windows, rode:  .\scripts\setup-windows.ps1'
 MSG_SETUP_INTERRUPTED='interrompido — nada foi perdido, rodar de novo é seguro'
 MSG_SETUP_RESUMING='seguindo dentro do WezTerm'
 

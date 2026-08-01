@@ -153,6 +153,22 @@ if group estatico "static — is the code even valid?"; then
   else
     na "zellij not installed"
   fi
+
+  # The .ps1 are excluded from the bash -n loop above; parse them with pwsh's
+  # own parser (the analogue of bash -n / luac -p). Skipped where pwsh is
+  # absent, like the author's macOS/Linux boxes.
+  if command -v pwsh >/dev/null 2>&1; then
+    for f in bootstrap-windows.ps1 setup-windows.ps1; do
+      if (cd "$repo_dir" && pwsh -NoProfile -NonInteractive -Command \
+        "\$t=\$null;\$e=\$null;[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/$f'),[ref]\$t,[ref]\$e)>\$null;exit([int](\$e.Count -gt 0))") 2>/dev/null; then
+        ok "powershell syntax: $f"
+      else
+        no "powershell syntax: $f"
+      fi
+    done
+  else
+    na "pwsh not installed (PowerShell scripts not parsed)"
+  fi
 fi
 
 # ══ unit ═══════════════════════════════════════════════════════════════════
@@ -253,6 +269,21 @@ if group regressao "regression — bugs that already happened here"; then
       ok "broken WezTerm config falls back to default (spotted by 'Leader:')"
     fi
     rm -rf "$tmpcfg"
+
+    # No. 1b: the config has to load when it is reached from OUTSIDE its own
+    # directory — via --config-file or WEZTERM_CONFIG_FILE, with the repo not
+    # at ~/.config/wezterm. require('config.*') only resolves if wezterm.lua
+    # adds its own dir to package.path: WezTerm puts only the *config dir* there,
+    # which is not the file's dir in that case. Run from a neutral CWD so a
+    # stray ./config cannot mask it (every other test runs from the repo).
+    elsewhere="$(mktemp -d)"
+    keys="$(cd "$elsewhere" && "$wt" --config-file "$repo_dir/wezterm.lua" show-keys 2>/dev/null)"
+    if grep -q '^Leader:' <<<"$keys"; then
+      ok "config loads from a neutral CWD (not only from the repo dir)"
+    else
+      no "config does NOT load from a neutral CWD" "wezterm.lua must add its own dir to package.path"
+    fi
+    rm -rf "$elsewhere"
   else
     na "wezterm not found"
   fi
@@ -899,6 +930,20 @@ if group integracao "integration — the full flow, in a throwaway HOME"; then
     bash "$repo_dir/scripts/setup.sh" --does-not-exist
 
   t "cheatsheet runs" 0 bash "$repo_dir/scripts/cheatsheet.sh"
+
+  # The Windows wizard's contract, exercised on any machine with pwsh: an
+  # unknown argument exits 64 (like setup.sh), and -DryRun diagnoses and exits
+  # 0 without touching winget, WSL or the filesystem. The bash -c "cd && exec
+  # pwsh -File" wrapper keeps a POSIX path from being mangled on its way to the
+  # native exe.
+  if command -v pwsh >/dev/null 2>&1; then
+    t "setup-windows rejects an unknown argument" 64 \
+      bash -c "cd '$repo_dir' && exec pwsh -NoProfile -NonInteractive -File scripts/setup-windows.ps1 -does-not-exist"
+    t "setup-windows -DryRun exits 0 and mutates nothing" 0 \
+      bash -c "cd '$repo_dir' && exec pwsh -NoProfile -NonInteractive -File scripts/setup-windows.ps1 -DryRun"
+  else
+    na "pwsh not installed (setup-windows.ps1 behavior not exercised)"
+  fi
 
   # The cheat sheet opens with the shell in a new WezTerm window — and ONLY
   # there: inside Zellij/tmux every split would reprint the ~75 lines. It

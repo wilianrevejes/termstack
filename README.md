@@ -38,8 +38,10 @@ bash scripts/setup.sh
 ```powershell
 git clone "git@github.com:YOUR-USER/termstack.git" "$HOME\.config\wezterm"
 Set-Location "$HOME\.config\wezterm"
-.\scripts\bootstrap-windows.ps1     # there is no setup.sh on Windows
+.\scripts\setup-windows.ps1     # the Windows entry point (mirrors setup.sh)
 ```
+
+If Windows PowerShell 5.1 refuses with "running scripts is disabled on this system", start it from a terminal instead: `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1`.
 
 **Installation always goes through `setup.sh`** — the bootstrap scripts are called by it, not directly. It detects the system and walks you through five steps:
 
@@ -73,7 +75,14 @@ The powerlevel10k wizard **does not detect fonts** — it records the mode based
 
 That is why step 4 only *offers* the wizard, with a warning: run it inside a WezTerm that already has the font. It rewrites the **repository's** `zsh/p10k.zsh` (not `~/.p10k.zsh`), so one answer covers every machine once you commit it.
 
-Windows takes two steps: the `.ps1` installs WezTerm and the font **on Windows**, and `bootstrap-linux.sh` run **inside the WSL distro** installs the rest. It detects WSL and skips WezTerm, because rendering there is done by the Windows WezTerm.
+Windows spans two file systems: WezTerm and the font run **on Windows**, the CLI layer runs **inside a WSL distro**. They are **two separate setups**. `setup-windows.ps1` handles the Windows half only — diagnose, install WezTerm + the font (through `bootstrap-windows.ps1`), verify the WezTerm layer — and then points you at the WSL half. For that, open your distro and run the Linux setup there, cloned onto the distro filesystem (not `/mnt/c`):
+
+```bash
+git clone <repo> ~/.config/wezterm
+cd ~/.config/wezterm && bash scripts/setup.sh
+```
+
+It detects WSL and skips WezTerm, since rendering there is done by the Windows WezTerm.
 
 After bootstrap, reopen the shell (`exec $SHELL`) so `mise` lands on your `PATH`.
 

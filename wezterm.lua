@@ -6,6 +6,18 @@ local config = wezterm.config_builder()
 -- effect.
 config:set_strict_mode(true)
 
+-- WezTerm only puts the *config directory* on package.path, and that is not
+-- this file's directory when the config is reached through WEZTERM_CONFIG_FILE
+-- with the repo cloned outside ~/.config/wezterm (require('config.*') then
+-- fails and the whole config silently falls back to the default). Add our own
+-- directory so the requires below resolve however, and from wherever, this file
+-- was loaded. Guarded: if wezterm.config_file is ever unavailable this is a
+-- no-op, and the default config-dir behavior stands.
+local here = (wezterm.config_file or ''):gsub('[/\\][^/\\]*$', '')
+if here ~= '' then
+  package.path = here .. '/?.lua;' .. here .. '/?/init.lua;' .. package.path
+end
+
 require('config.appearance').apply(config, wezterm)
 require('config.keys').apply(config, wezterm)
 require('config.platform').apply(config, wezterm)

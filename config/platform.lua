@@ -48,11 +48,21 @@ function M.apply(config, wezterm)
         label = 'Command Prompt',
         args = { 'cmd.exe' },
       },
-      {
-        label = 'WSL Ubuntu',
-        domain = { DomainName = 'WSL:Ubuntu' },
-      },
     }
+
+    -- One entry per installed WSL distro, detected at startup instead of
+    -- hardcoded to a single name -- so every distro shows up (and a machine
+    -- with none just gets the shells above). pcall because default_wsl_domains
+    -- shells out to `wsl -l`, which errors on a box without the WSL feature.
+    local ok_wsl, wsl_domains = pcall(wezterm.default_wsl_domains)
+    if ok_wsl and wsl_domains then
+      for _, dom in ipairs(wsl_domains) do
+        table.insert(config.launch_menu, {
+          label = 'WSL ' .. dom.distribution,
+          domain = { DomainName = dom.name },
+        })
+      end
+    end
 
     return
   end

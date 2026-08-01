@@ -133,7 +133,7 @@ msg_setup_usage() {
 }
 
 MSG_SETUP_UNSUPPORTED='System not supported by this script: %s'
-MSG_SETUP_WINDOWS='On Windows, run:  .\scripts\bootstrap-windows.ps1'
+MSG_SETUP_WINDOWS='On Windows, run:  .\scripts\setup-windows.ps1'
 MSG_SETUP_INTERRUPTED='interrupted — nothing was lost, running again is safe'
 MSG_SETUP_RESUMING='carrying on inside WezTerm'
 
