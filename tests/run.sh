@@ -661,6 +661,227 @@ if group regressao "regression — bugs that already happened here"; then
     no "the cheat sheet announces a shortcut that does not exist" "$falta"
   fi
 
+  # ── The layers `wezterm show-keys` cannot see ────────────────────────────
+  #
+  # The drift test above only reaches the WezTerm layer. Everything the sheet
+  # says about Zellij, tmux and the shell was verified by hand once, which is
+  # not a guard: those files get edited without anyone opening i18n/.
+  #
+  # All four render the sheet in ENGLISH on purpose. The anchors are words
+  # ("Zellij only", "Shell"), and in another language they are other words —
+  # the drift test above greps for "split" and, under a pt_BR locale, silently
+  # checks nothing at all.
+  folha_en="$(TERMSTACK_LANG=en bash "$repo_dir/scripts/cheatsheet.sh" |
+    sed $'s/\033\\[[0-9;]*m//g')"
+
+  # No. 23: the Zellij keys, both ways — a bind that no line announces, and a
+  # line announcing a bind that does not exist.
+  binds="$(awk '/^    tmux clear-defaults/ { f = 1 } f && /bind "/ { print }' \
+    "$repo_dir/zellij/config.kdl")"
+
+  # Where they are announced: the shared prefix line plus the Zellij block, up
+  # to where the tmux one starts. The label goes, so only keys are left.
+  bloco="$( {
+    grep -F 'split' <<<"$folha_en" | head -1
+    awk '/Zellij only/ { f = 1 } /tmux only/ { f = 0 } f' <<<"$folha_en"
+  } | sed -E 's/Zellij only//')"
+
+  falta=""
+  while IFS= read -r linha; do
+    [[ -n "$linha" ]] || continue
+    tecla="$(sed -E 's/.*bind "([^"]+)".*/\1/' <<<"$linha")"
+
+    # Two of them are announced outside that block: the prefix itself, up in
+    # the header, and `?`, down in "Forgot a key?".
+    case "$tecla" in
+      "Ctrl Space")
+        grep -q 'Zellij Ctrl+Space' <<<"$folha_en" || falta="$falta prefix"
+        continue
+        ;;
+      "?")
+        grep -q 'Ctrl+Space ?' <<<"$folha_en" || falta="$falta ?"
+        continue
+        ;;
+      Space) tecla=space ;;
+    esac
+
+    awk -v k="$tecla" '{ for (i = 1; i <= NF; i++) if ($i == k) f = 1 } END { exit !f }' \
+      <<<"$bloco" || falta="$falta $tecla"
+  done <<<"$binds"
+
+  # The other direction. An item on those lines starts with its key, and items
+  # are separated by three spaces — that is the whole layout convention.
+  sobra=""
+  while IFS= read -r tecla; do
+    [[ -n "$tecla" ]] || continue
+    [[ "$tecla" == space ]] && tecla=Space
+    grep -qF "bind \"$tecla\"" <<<"$binds" || sobra="$sobra $tecla"
+  done < <(awk '{
+    gsub(/^ +/, "")
+    n = split($0, item, /   +/)
+    for (i = 1; i <= n; i++) {
+      if (item[i] ~ /[^ ]/) {
+        split(item[i], w, " ")
+        print w[1]
+      }
+    }
+  }' <<<"$bloco")
+
+  if [[ -z "$falta$sobra" ]]; then
+    ok "the cheat sheet and the Zellij binds say the same thing"
+  else
+    no "cheat sheet and zellij/config.kdl diverged" "unannounced:$falta invented:$sobra"
+  fi
+
+  # No. 24: the Shell block promises aliases and tools that live in three other
+  # files. The mapping is by hand because the names differ — the sheet says
+  # `rg`, mise says `ripgrep` — so each pair is checked on both sides: the
+  # sheet really announces the token, and something really provides it.
+  bloco_sh="$(awk '/^  Shell$/ { f = 1; next } f && /^$/ { exit } f' <<<"$folha_en")"
+  falta=""
+
+  anunciada() {
+    awk -v k="$1" '{ for (i = 1; i <= NF; i++) if ($i == k) f = 1 } END { exit !f }' \
+      <<<"$bloco_sh"
+  }
+
+  for a in v lg zj stack; do
+    anunciada "$a" || falta="$falta sheet:$a"
+    grep -qE "^alias $a=" "$repo_dir/zsh/zshrc" || falta="$falta zshrc:$a"
+  done
+
+  while read -r tok tool; do
+    [[ -n "$tok" ]] || continue
+    anunciada "$tok" || falta="$falta sheet:$tok"
+    grep -qE "^$tool = " "$repo_dir/mise/config.toml" || falta="$falta mise:$tool"
+  done <<'MAPA'
+rg ripgrep
+fd fd
+bat bat
+z zoxide
+Ctrl+R fzf
+MAPA
+
+  if [[ -z "$falta" ]]; then
+    ok "the Shell block matches zsh/zshrc and mise/config.toml"
+  else
+    no "the Shell block of the cheat sheet promises what nothing provides" "$falta"
+  fi
+
+  # The git aliases are not ours: they come from the oh-my-zsh plugin, which is
+  # a clone the bootstrap makes. Without it there is nothing to check against.
+  omz_git="$HOME/.oh-my-zsh/plugins/git/git.plugin.zsh"
+  if [[ -r "$omz_git" ]]; then
+    falta=""
+    while IFS= read -r a; do
+      [[ -n "$a" ]] || continue
+      grep -qE "^alias $a=" "$omz_git" || falta="$falta $a"
+    done < <(awk '/^    gst /{ for (i = 1; i <= NF; i++) if ($i ~ /^g[a-z]+$/) print $i }' \
+      <<<"$bloco_sh")
+
+    if [[ -z "$falta" ]]; then
+      ok "every git alias the cheat sheet lists exists in the oh-my-zsh plugin"
+    else
+      no "git alias on the sheet that oh-my-zsh does not define" "$falta"
+    fi
+  else
+    na "oh-my-zsh not cloned, no way to check the git aliases"
+  fi
+
+  # No. 25: the "Open LazyVim on a project" block hands out flags, and zellij's
+  # are not consistent between subcommands — `-c` is --cwd on `action new-tab`
+  # and --close-on-exit on `run`. The sheet prints only the first form. If
+  # upstream ever swaps them, that line turns into a trap.
+  zj_bin="$(bash -c "source '$repo_dir/scripts/_common.sh'; tool_bin zellij")"
+
+  if [[ -n "$zj_bin" ]]; then
+    falta=""
+    "$zj_bin" action new-tab --help 2>&1 | grep -qE '^ *-c, --cwd' ||
+      falta="$falta new-tab:-c-is-not-cwd"
+    "$zj_bin" run --help 2>&1 | grep -qE '^ *-c, --close-on-exit' ||
+      falta="$falta run:-c-is-not-close-on-exit"
+    "$zj_bin" attach --help 2>&1 | grep -qE '^ *-f, --force-run-commands' ||
+      falta="$falta attach:-f"
+    "$zj_bin" --help 2>&1 | grep -qE '^ *-n, --new-session-with-layout' ||
+      falta="$falta -n"
+
+    if [[ -z "$falta" ]]; then
+      ok "the zellij flags the cheat sheet gives out still mean what it says"
+    else
+      no "a zellij flag on the cheat sheet changed meaning upstream" "$falta"
+    fi
+  else
+    na "zellij missing, no way to check the flags on the sheet"
+  fi
+
+  # No. 26: the tmux line came last and had no guard at all. Server on a socket
+  # of its own and a throwaway HOME: with no plugins the if-shell block in
+  # tmux.conf is false, so no TPM, no continuum, and nothing of yours is
+  # restored into the test — which also means prefix I and U are not there to
+  # check, since TPM is what binds them. What the sheet promises about those
+  # two is that tmux.conf loads TPM at all, and that is checked as text.
+  tmux_bin="$(bash -c "source '$repo_dir/scripts/_common.sh'; tool_bin tmux")"
+
+  if [[ -n "$tmux_bin" ]]; then
+    h="$(sandbox)"
+    sock="termstack-test-$$"
+    teclas="$(HOME="$h" "$tmux_bin" -L "$sock" -f "$repo_dir/tmux/tmux.conf" \
+      list-keys -T prefix 2>/dev/null)"
+    HOME="$h" "$tmux_bin" -L "$sock" kill-server >/dev/null 2>&1
+    rm -rf "$h"
+
+    # The key alone is not enough for the ones that are OURS: tmux binds `r` to
+    # refresh-client by default, so deleting our reload from tmux.conf would
+    # leave `r` bound and the test green. The command has to match too.
+    bound() {
+      awk -v k="$1" -v c="${2:-.}" '{
+        for (i = 1; i < NF; i++) {
+          if ($i == "prefix" && $(i + 1) == k) {
+            resto = ""
+            for (j = i + 2; j <= NF; j++) resto = resto $j " "
+            if (resto ~ c) f = 1
+          }
+        }
+      } END { exit !f }' <<<"$teclas"
+    }
+
+    falta=""
+    while read -r k cmd; do
+      [[ -n "$k" ]] || continue
+      bound "$k" "$cmd" || falta="$falta $k"
+    done <<'MAPA'
+r source-file
+| split-window
+- split-window
+c new-window
+h select-pane
+j select-pane
+k select-pane
+l select-pane
+H resize-pane
+J resize-pane
+K resize-pane
+L resize-pane
+MAPA
+
+    # These are tmux's own, and the sheet lists them as such: zoom, session
+    # picker, detach, window N, copy mode and the key list. Presence is the
+    # whole claim.
+    for k in z s d 9 '[' '?'; do
+      bound "$k" || falta="$falta $k"
+    done
+
+    grep -q 'plugins/tpm/tpm"' "$repo_dir/tmux/tmux.conf" || falta="$falta tpm(I,U)"
+
+    if [[ -z "$falta" ]]; then
+      ok "every tmux key on the cheat sheet is really bound"
+    else
+      no "the cheat sheet announces a tmux key that is not bound" "$falta"
+    fi
+  else
+    na "tmux missing, no way to check the keys on the sheet"
+  fi
+
   # ── i18n ─────────────────────────────────────────────────────────────────
 
   # No. 20: a key used in a script and missing from en.sh becomes "unbound
