@@ -362,7 +362,10 @@ if [[ -f "$zshrc" ]]; then
     /^# <<< (termstack|wezterm-config) <<</ { skip = 0 }
   ' "$zshrc" 2>/dev/null)"
 
-  if grep -qE 'oh-my-zsh\.sh|p10k-instant-prompt|antigen|zinit|zplug|prezto' <<<"$rc_outside_block"; then
+  # Comments stripped for the same reason as in _common.sh: a migrated rc that
+  # documents what the source line replaced is not an rc with its own framework.
+  if awk '{ sub(/#.*/, ""); print }' <<<"$rc_outside_block" |
+    grep -qE 'oh-my-zsh\.sh|p10k-instant-prompt|antigen|zinit|zplug|prezto'; then
     block "$MSG_PRE_OWN_OMZ" "$HOME/.zshrc"
     note "$MSG_PRE_OWN_OMZ_NOTE1"
     note "$MSG_PRE_OWN_OMZ_NOTE2"

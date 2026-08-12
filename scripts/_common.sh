@@ -404,7 +404,13 @@ configure_shell() {
       # The edit is manual on purpose. A surgical `sed` on the only copy of an
       # rc holding SDK paths and hand-written functions, running inside a
       # bootstrap, is a risk not worth two minutes of work.
-      if grep -qE 'oh-my-zsh\.sh|p10k-instant-prompt|antigen|zinit|zplug|prezto' "$rc" 2>/dev/null; then
+      # Comments are stripped before matching. A rc that has already been
+      # migrated by hand tends to explain what the source line replaced ("the
+      # source of oh-my-zsh.sh, the instant-prompt block"), and matching that
+      # would append the degraded block on top of a correct migration — the
+      # exact opposite of what the recipe in msg_rc_migration_block asks for.
+      if awk '{ sub(/#.*/, ""); print }' "$rc" 2>/dev/null |
+        grep -qE 'oh-my-zsh\.sh|p10k-instant-prompt|antigen|zinit|zplug|prezto'; then
         {
           printf '\n%s\n' "$begin"
           msg_rc_migration_block "$repo_dir"

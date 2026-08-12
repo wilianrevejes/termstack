@@ -229,6 +229,7 @@ if group unidade "unit — _common.sh functions in isolation"; then
   # (two compinit calls otherwise) — but mise still has to be activated, or the
   # tools install and never reach PATH.
   h="$(sandbox)"
+  # shellcheck disable=SC2016  # $ZSH is literal, it goes into the fake rc as-is
   printf 'source "$ZSH/oh-my-zsh.sh"\n' >"$h/.zshrc"
   SHELL=/bin/zsh HOME="$h" bash -c "source '$repo_dir/scripts/_common.sh'; configure_shell '$repo_dir'" >/dev/null 2>&1
   block="$(awk '/>>> termstack >>>/{f=1} f{print} /<<< termstack <<</{f=0}' "$h/.zshrc")"
@@ -239,11 +240,30 @@ if group unidade "unit — _common.sh functions in isolation"; then
   fi
   rm -rf "$h"
 
+  # An rc migrated BY HAND keeps a comment saying what the source line replaced
+  # — and the recipe this repository prints names oh-my-zsh.sh out loud. Matched
+  # as text, that comment reads as "still has its own framework" and the
+  # degraded block lands on top of a correct migration.
+  h="$(sandbox)"
+  {
+    printf '# replaces the instant prompt and the source of oh-my-zsh.sh\n'
+    printf 'source "%s/zsh/zshrc"\n' "$repo_dir"
+  } >"$h/.zshrc"
+  SHELL=/bin/zsh HOME="$h" bash -c "source '$repo_dir/scripts/_common.sh'; configure_shell '$repo_dir'" >/dev/null 2>&1
+  block="$(awk '/>>> termstack >>>/{f=1} f{print} /<<< termstack <<</{f=0}' "$h/.zshrc")"
+  if grep -q "source \"$repo_dir/zsh/zshrc\"" <<<"$block"; then
+    ok "a comment naming oh-my-zsh.sh does not read as the rc having its own"
+  else
+    no "the degraded block landed on an rc that was already migrated" "$block"
+  fi
+  rm -rf "$h"
+
   # A re-run must REFRESH the block, not skip it: an old EDITOR-only block has
   # to gain the mise activation, and the count stays 1. This is the whole point
   # of pulling the fix and running setup.sh again.
   h="$(sandbox)"
   {
+    # shellcheck disable=SC2016  # same literal $ZSH as above
     printf 'source "$ZSH/oh-my-zsh.sh"\n'
     printf '# >>> termstack >>>\n'
     printf 'export EDITOR=nvim\n'
