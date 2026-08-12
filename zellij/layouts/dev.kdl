@@ -12,24 +12,29 @@
 // one from default_layout "compact" — without this line the session opens
 // with no mode indicator, and the mode is precisely what says whether
 // Ctrl+Space was captured.
+//
+// It goes LAST, which is what puts it at the bottom: order in the file is
+// order on screen. Declared first, it sat at the top here while the built-in
+// compact kept it at the bottom in every other tab, and the bar jumped from
+// one edge to the other as you switched tabs.
 layout {
-    pane size=1 borderless=true {
-        plugin location="zellij:compact-bar"
-    }
-
     // close_on_exit: quitting nvim closes the pane instead of leaving the
     // "EXIT CODE 0" corpse waiting for Enter.
     pane command="nvim" focus=true close_on_exit=true
 
     pane size="20%"
 
+    pane size=1 borderless=true {
+        plugin location="zellij:compact-bar"
+    }
+
     // Without this, the panes above become the model for EVERY new tab:
-    // Ctrl+Space c would open another nvim+terminal. A new tab is the bar
-    // and a shell, that is all.
+    // Ctrl+Space c would open another nvim+terminal. A new tab is a shell and
+    // the bar, that is all — same order as the built-in compact layout.
     new_tab_template {
+        pane
         pane size=1 borderless=true {
             plugin location="zellij:compact-bar"
         }
-        pane
     }
 }

@@ -12,14 +12,15 @@
 // The panes are not recreated between states: nvim keeps running, it just
 // moves. What changes is the geometry, not the processes.
 
-// The bar comes back in every state, and on top, the same as in dev.kdl:
-// `children` after it puts the real panes below the bar. Reversing the two
-// lines moves the bar to the bottom.
+// The bar comes back in every state, and at the bottom, the same as in
+// dev.kdl: `children` first puts the real panes above it. Reversing the two
+// lines moves the bar to the top — and then it would jump between edges as
+// you switch tabs, because the built-in compact layout keeps it at the bottom.
 tab_template name="ui" {
+    children
     pane size=1 borderless=true {
         plugin location="zellij:compact-bar"
     }
-    children
 }
 
 // Side by side, for wide screens: nvim on the left, terminal on the right.
