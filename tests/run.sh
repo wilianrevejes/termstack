@@ -689,6 +689,86 @@ if group regressao "regression — bugs that already happened here"; then
   folha_en="$(TERMSTACK_LANG=en bash "$repo_dir/scripts/cheatsheet.sh" |
     sed $'s/\033\\[[0-9;]*m//g')"
 
+  # No. 28: the drift test above starts from a list of seven actions, so a bind
+  # outside that list can live in config/keys.lua without ever reaching the
+  # sheet — which is exactly what LEADER H J K L, LEADER 1..9, the launcher and
+  # the doubled prefix did. This one starts from the other end: EVERY LEADER
+  # binding WezTerm reports has to be announced. It reuses the show-keys output
+  # the test above already paid twenty seconds for.
+  if [[ -n "$wez" ]]; then
+    bloco_wez="$( {
+      grep -F 'split' <<<"$folha_en" | head -1
+      awk '/WezTerm only/ { f = 1 } /Zellij only/ { f = 0 } f' <<<"$folha_en"
+    } | sed -E 's/WezTerm only//')"
+
+    falta=""
+    digitos=0
+
+    while IFS= read -r linha; do
+      [[ -n "$linha" ]] || continue
+
+      # Last token before the `->`, same rule as the test above: the mods
+      # column can contain `|` (SHIFT | LEADER), so a fixed column does not cut
+      # it. The action is what comes after, up to its first argument.
+      tecla="$(sed -E 's/^.*[[:space:]]([^[:space:]]+)[[:space:]]+->.*/\1/' <<<"$linha")"
+      acao="$(sed -E 's/.*->[[:space:]]+//; s/[[:space:]({].*//' <<<"$linha")"
+
+      # Three of them are announced as prose or as a range, not as a token.
+      case "$acao" in
+        SendKey)
+          grep -q 'Ctrl+a again' <<<"$folha_en" || falta="$falta doubled-prefix"
+          continue
+          ;;
+        SpawnCommandInNewTab)
+          grep -q 'Ctrl+a ?' <<<"$folha_en" || falta="$falta ?"
+          continue
+          ;;
+        ActivateTab)
+          digitos=$((digitos + 1))
+          continue
+          ;;
+      esac
+
+      [[ "$tecla" == Space ]] && tecla=space
+
+      awk -v k="$tecla" '{ for (i = 1; i <= NF; i++) if ($i == k) f = 1 } END { exit !f }' \
+        <<<"$bloco_wez" || falta="$falta $tecla"
+    done <<<"$keys"
+
+    # The sheet writes the nine tabs as a range. Both halves are claims: that
+    # the range is printed, and that all nine really are bound.
+    grep -qF '1…9' <<<"$bloco_wez" || falta="$falta range-1-9"
+    ((digitos == 9)) || falta="$falta ActivateTab=$digitos"
+
+    # And the other way, for the WezTerm-only lines: an item starts with its
+    # key. The three that are not a key are the ones handled above.
+    sobra=""
+    while IFS= read -r tok; do
+      case "$tok" in
+        '' | '1…9' | 'Ctrl+a') continue ;;
+        space) tok=Space ;;
+      esac
+
+      awk -v k="$tok" '{ for (i = 1; i < NF; i++) if ($i == k && $(i + 1) == "->") f = 1 } END { exit !f }' \
+        <<<"$keys" || sobra="$sobra $tok"
+    done < <(awk '/only|resize|launcher|again/ {
+      gsub(/^ +/, "")
+      n = split($0, item, /   +/)
+      for (i = 1; i <= n; i++) {
+        if (item[i] ~ /[^ ]/) {
+          split(item[i], w, " ")
+          print w[1]
+        }
+      }
+    }' <<<"$bloco_wez")
+
+    if [[ -z "$falta$sobra" ]]; then
+      ok "every LEADER binding WezTerm reports is announced on the sheet"
+    else
+      no "WezTerm binding the cheat sheet does not match" "unannounced:$falta invented:$sobra"
+    fi
+  fi
+
   # No. 23: the Zellij keys, both ways — a bind that no line announces, and a
   # line announcing a bind that does not exist.
   binds="$(awk '/^    tmux clear-defaults/ { f = 1 } f && /bind "/ { print }' \
