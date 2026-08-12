@@ -99,6 +99,19 @@ sandbox() {
   echo "$h"
 }
 
+# A stub `nvim`, for the sandboxes that run update.sh. Its rollback path calls
+# sync_nvim_plugins, and a real headless lazy.nvim pointed at a HOME with no
+# plugins CLONES ALL OF THEM: 180 MB downloaded and thrown away on every run of
+# this suite, hidden behind the >/dev/null of the test that wanted to check
+# something else entirely. tool_bin takes `command -v` first, so a stub earlier
+# on PATH is enough — and sync_nvim_plugins finding a working nvim is precisely
+# what these tests do NOT want to exercise.
+stub_nvim() {
+  mkdir -p "$1/bin"
+  printf '#!/bin/sh\nexit 0\n' >"$1/bin/nvim"
+  chmod +x "$1/bin/nvim"
+}
+
 # ══ static ═════════════════════════════════════════════════════════════════
 
 if group estatico "static — is the code even valid?"; then
@@ -487,7 +500,8 @@ if group regressao "regression — bugs that already happened here"; then
   git -C "$fake" add -A 2>/dev/null
   git -C "$fake" -c user.email=t@t -c user.name=t commit -qm t 2>/dev/null
   echo '-- uncommitted work --' >>"$fake/config/keys.lua"
-  HOME="$h" bash "$fake/scripts/update.sh" >/dev/null 2>&1
+  stub_nvim "$h"
+  HOME="$h" PATH="$h/bin:$PATH" bash "$fake/scripts/update.sh" >/dev/null 2>&1
   if grep -q 'uncommitted work' "$fake/config/keys.lua"; then
     ok "the update rollback preserves an uncommitted modification"
   else
@@ -506,7 +520,8 @@ if group regressao "regression — bugs that already happened here"; then
   br="$h/.local/state/termstack/backup"
   mkdir -p "$br/20200101-000000" "$br/preflight-20990101-000000"
   echo none >"$br/20200101-000000/git-rev"
-  out="$(HOME="$h" bash "$fake/scripts/update.sh" --rollback 2>&1)"
+  stub_nvim "$h"
+  out="$(HOME="$h" PATH="$h/bin:$PATH" bash "$fake/scripts/update.sh" --rollback 2>&1)"
   if grep -q 'restoring .*/20200101-000000' <<<"$out"; then
     ok "--rollback with no argument takes the update snapshot, not preflight's"
   else
@@ -880,6 +895,133 @@ MAPA
     fi
   else
     na "tmux missing, no way to check the keys on the sheet"
+  fi
+
+  # No. 27: the LazyVim block, which is the one the sheet cannot own — those
+  # keys come from upstream and get renamed there without anyone here noticing.
+  # It needs a real Neovim with the plugins already installed, so it SKIPS on a
+  # machine that has not run the bootstrap: a test that would clone plugins to
+  # answer is not a test, it is an install.
+  #
+  # Two sources, because there are two kinds of key on that block. The ones
+  # without a mark are global and are asked of `maparg` directly. The ones the
+  # sheet marks with `*` are buffer-local — they exist only once a language
+  # server attaches, so they are read from the spec LazyVim resolves for
+  # nvim-lspconfig, which is where they are declared.
+  nvim_bin="$(bash -c "source '$repo_dir/scripts/_common.sh'; tool_bin nvim")"
+  lazy_dir="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/LazyVim"
+
+  if [[ -n "$nvim_bin" && -d "$lazy_dir" ]]; then
+    bloco_lv=" $(awk '/^  LazyVim/ { f = 1; next } f && /^$/ { exit } f' <<<"$folha_en" |
+      tr '\n' ' ' | tr -s ' ') "
+
+    h="$(sandbox)"
+    : >"$h/keys"
+    : >"$h/lsp"
+    falta=""
+
+    # lhs, where it lives, and the token the sheet prints for it. The lhs comes
+    # first because it never contains a space and the token often does. This
+    # table is the ONLY list: writing the lsp keys out again further down would
+    # let the two copies drift, and a guard that disagrees with itself passes.
+    while read -r lhs escopo token; do
+      [[ -n "$lhs" ]] || continue
+      grep -qF " $token " <<<"$bloco_lv" || falta="$falta sheet:$token"
+
+      if [[ "$escopo" == global ]]; then
+        printf '%s\n' "$lhs" >>"$h/keys"
+      else
+        printf '%s\n' "$lhs" >>"$h/lsp"
+      fi
+    done <<'TECLAS'
+<leader><leader> global space
+<leader>/ global /
+<leader>, global ,
+<leader>e global e
+<leader>fr global f r
+<leader>gg global g g
+<leader>bb global b b
+<leader>bd global b d
+<leader>qq global q q
+<leader>l global l
+<leader>sw global s w
+<leader>sk global s k
+<leader>qs global q s
+<leader>cd global c d
+<leader>| global |
+<leader>- global -
+]d global ] d
+[d global [ d
+H global H L
+L global H L
+<C-h> global Ctrl+h/j/k/l
+<C-j> global Ctrl+h/j/k/l
+<C-k> global Ctrl+h/j/k/l
+<C-l> global Ctrl+h/j/k/l
+<C-/> global Ctrl+/
+gd lsp g d*
+gr lsp g r*
+K lsp K*
+<leader>ca lsp c a*
+<leader>cr lsp c r*
+TECLAS
+
+    # VeryLazy is fired by hand: with no UI attached there is nothing to make
+    # Neovim fire it on its own, and every keymap on that block is registered
+    # by a plugin that waits for it.
+    cat >"$h/dump.lua" <<'LUA'
+vim.api.nvim_exec_autocmds("User", { pattern = "VeryLazy", modeline = false })
+vim.wait(5000, function()
+  return vim.fn.mapcheck(" ff", "n") ~= ""
+end)
+
+local ausentes = {}
+for linha in io.lines(os.getenv("TERMSTACK_KEYS")) do
+  if vim.fn.maparg((linha:gsub("<leader>", vim.g.mapleader)), "n") == "" then
+    ausentes[#ausentes + 1] = linha
+  end
+end
+io.write("GLOBAL " .. table.concat(ausentes, " ") .. "\n")
+
+local lsp = {}
+local ok, opts = pcall(function()
+  return LazyVim.opts("nvim-lspconfig")
+end)
+if ok and opts.servers and opts.servers["*"] then
+  for _, k in ipairs(opts.servers["*"].keys or {}) do
+    lsp[#lsp + 1] = k[1]
+  end
+end
+io.write("LSP " .. table.concat(lsp, " ") .. "\n")
+LUA
+
+    # alarm, and not a plain call: a Neovim that comes up waiting for input in
+    # a suite with no terminal hangs the whole run.
+    saida="$(TERMSTACK_KEYS="$h/keys" perl -e 'alarm 90; exec @ARGV' \
+      "$nvim_bin" --headless -i NONE -c "luafile $h/dump.lua" -c 'qa!' 2>/dev/null)"
+
+    ausentes="$(sed -n 's/^GLOBAL //p' <<<"$saida")"
+    lsp_keys=" $(sed -n 's/^LSP //p' <<<"$saida") "
+    [[ -n "$ausentes" ]] && falta="$falta nvim:$ausentes"
+
+    if [[ "$lsp_keys" == "  " ]]; then
+      falta="$falta lsp-spec-empty"
+    else
+      while IFS= read -r k; do
+        [[ -n "$k" ]] || continue
+        grep -qF " $k " <<<"$lsp_keys" || falta="$falta lsp:$k"
+      done <"$h/lsp"
+    fi
+
+    rm -rf "$h"
+
+    if [[ -z "$falta" ]]; then
+      ok "every LazyVim key on the cheat sheet is really mapped"
+    else
+      no "the cheat sheet announces a LazyVim key that does not exist" "$falta"
+    fi
+  else
+    na "Neovim without the plugins installed, no way to check the LazyVim keys"
   fi
 
   # ── i18n ─────────────────────────────────────────────────────────────────
@@ -1310,7 +1452,8 @@ if group integracao "integration — the full flow, in a throwaway HOME"; then
   git -C "$fake" init -q -b main . 2>/dev/null
   git -C "$fake" add -A 2>/dev/null
   git -C "$fake" -c user.email=t@t -c user.name=t commit -qm t 2>/dev/null
-  out="$(HOME="$h" bash "$fake/scripts/update.sh" 2>&1)"
+  stub_nvim "$h"
+  out="$(HOME="$h" PATH="$h/bin:$PATH" bash "$fake/scripts/update.sh" 2>&1)"
   if grep -q 'offline' <<<"$out"; then
     ok "update.sh detects that it is offline and skips the network"
   else
