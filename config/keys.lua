@@ -64,9 +64,14 @@ function M.apply(config, wezterm)
     { key = '[', mods = 'LEADER', action = act.ActivateCopyMode },
     { key = ' ', mods = 'LEADER', action = act.ShowLauncher },
 
-    -- The four-layer cheatsheet, in a pane that closes on any key.
+    -- The four-layer cheatsheet, in a tab that closes on any key.
     --
-    -- The `read -rsn1` at the end is mandatory: without it the pane prints
+    -- A tab and not a split: the sheet is over forty lines, and a 70% split
+    -- of a window this size shows the LAST thirty-odd — the terminal scrolls,
+    -- so what falls off is the top, which is where the four layers are. A tab
+    -- gets the full window height whatever the window is.
+    --
+    -- The `read -rsn1` at the end is mandatory: without it the tab prints
     -- and dies at the same instant, and nothing is left to read.
     --
     -- config_dir and not a fixed path: the repository may be cloned into
@@ -77,16 +82,12 @@ function M.apply(config, wezterm)
     {
       key = '?',
       mods = 'LEADER|SHIFT',
-      action = act.SplitPane({
-        direction = 'Down',
-        size = { Percent = 70 },
-        command = {
-          args = {
-            'bash',
-            '-c',
-            'bash ' .. wezterm.shell_quote_arg(wezterm.config_dir .. '/scripts/cheatsheet.sh')
-              .. '; read -rsn1',
-          },
+      action = act.SpawnCommandInNewTab({
+        args = {
+          'bash',
+          '-c',
+          'bash ' .. wezterm.shell_quote_arg(wezterm.config_dir .. '/scripts/cheatsheet.sh')
+            .. '; read -rsn1',
         },
       }),
     },

@@ -10,7 +10,7 @@
 # Above the instant prompt on purpose: printing BEFORE the block is the
 # pattern p10k supports; after it, any output triggers the console output
 # warning. Panes inside Zellij/tmux are left out — otherwise every split
-# would reprint the ~75 lines.
+# would reprint all 47 lines.
 if [[ -n "$WEZTERM_PANE" && -z "$ZELLIJ" && -z "$TMUX" ]]; then
   [[ -r "${0:A:h:h}/scripts/cheatsheet.sh" ]] && bash "${0:A:h:h}/scripts/cheatsheet.sh"
 fi

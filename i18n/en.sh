@@ -515,6 +515,12 @@ msg_boot_linux_done() {
 # Hard limit: 78 columns of VISIBLE text. At the end of setup this may land in
 # an 80-column Terminal.app, and a line wrapped mid-word is worse than an
 # extra line. A test enforces it.
+#
+# Height has no test, only a rule: whatever opens this has to give it the FULL
+# window. A pane too short does not truncate the bottom, it scrolls and keeps
+# the END — the header with the four layers is the first thing to go. That is
+# why LEADER ? spawns a tab instead of a split (config/keys.lua) and why the
+# Zellij floating pane is at 95% (zellij/config.kdl).
 msg_cheatsheet() {
   local b=$UI_B c=$UI_AZ d=$UI_DIM r=$UI_R rule
   rule="$(printf '%*s' 74 '' | tr ' ' '─')"
@@ -531,27 +537,40 @@ msg_cheatsheet() {
     ${b}|${r} ${b}-${r} split   ${b}h j k l${r} focus   ${b}x${r} close   ${b}z${r} zoom   ${b}c n p${r} tabs   ${b}[${r} copy
     ${d}WezTerm only${r}  ${b}H J K L${r} resize   ${b}1${r}…${b}9${r} tab N   ${b}space${r} launcher
                   ${b}Ctrl+a${r} again sends a literal Ctrl+a to the shell
-    ${d}Zellij only${r}   ${b}f${r} floating   ${b}s${r} sessions   ${b}w${r} manager   ${b}Esc${r} lock
+    ${d}Zellij only${r}   ${b}f${r} floating   ${b}s${r} sessions   ${b}w${r} manager   ${b}d${r} detach   ${b}Esc${r} lock
                   ${b}space${r} cycle layout ${d}(vertical / horizontal / stacked)${r}
-                  ${d}zj -n dev opens nvim+terminal · zj attach NAME · zj ls${r}
+    ${d}tmux only${r}     ${b}z${r} zoom   ${b}s${r} sessions   ${b}d${r} detach   ${b}r${r} reload   ${b}1${r}…${b}9${r} window N
+                  ${b}I${r} install plugins   ${b}U${r} update them   ${b}?${r} every binding
+
+  ${b}Open LazyVim on a project${r} ${d}— it opens where the SHELL is: cd there first${r}
+    ${d}in this pane${r}  ${b}cd ~/proj${r} ${d}then${r} ${b}v${r}   ${d}(v = nvim · z proj jumps there)${r}
+    ${d}in a new one${r}  ${b}Ctrl+Space c${r} ${d}tab or${r} ${b}| -${r} ${d}pane — same directory, then${r} ${b}v${r}
+    ${d}another dir${r}   ${b}zj action new-tab -c ~/other${r} ${d}then${r} ${b}v${r}
+    ${d}in tmux${r}       ${b}prefix c | -${r} ${d}inherit it too ·${r} ${b}tmux neww -c ~/other nvim${r}
+    ${d}whole session${r} ${b}cd ~/proj && zj -s proj -n dev${r} ${d}— nvim + terminal, ready${r}
+    ${d}come back${r}     ${b}zj a -f proj${r}   ${d}·${r}   ${b}tmux a -t proj${r}   ${d}(list: zj ls · tmux ls)${r}
 
   ${b}LazyVim — Space, then${r}
     ${b}space${r} find file   ${b}/${r} grep   ${b},${r} buffers   ${b}e${r} file tree   ${b}f r${r} recent
-    ${b}g g${r} lazygit   ${b}b b${r} last buffer   ${b}c d${r} diagnostic   ${b}q q${r} quit   ${b}l${r} :Lazy
-    ${b}|${r} ${b}-${r} split window   ${b}Ctrl+h/j/k/l${r} windows   ${b}Ctrl+/${r} terminal
-    ${d}:LazyExtras toggles extras   :LazyHealth runs diagnostics${r}
+    ${b}g g${r} lazygit   ${b}b b${r} last buffer   ${b}b d${r} close buffer   ${b}q q${r} quit   ${b}l${r} :Lazy
+    ${b}s w${r} grep word under cursor   ${b}s k${r} every keymap   ${b}q s${r} restore session
+    ${b}c d${r} diagnostic   ${b}c a${r}${d}*${r} code action   ${b}c r${r}${d}*${r} rename   ${d}* needs an LSP${r}
+    ${b}|${r} ${b}-${r} split window   ${d}:LazyExtras${r} extras   ${d}:LazyHealth${r} diagnostics
+    ${d}no Space:${r}  ${b}g d${r}${d}*${r} definition   ${b}g r${r}${d}*${r} references   ${b}] d${r} ${b}[ d${r} diagnostic
+               ${b}K${r}${d}*${r} docs   ${b}H L${r} buffers   ${b}Ctrl+h/j/k/l${r} windows   ${b}Ctrl+/${r} terminal
 
   ${b}Shell${r}
-    ${b}v${r} nvim   ${b}lg${r} lazygit   ${b}zj${r} zellij   ${b}z DIR${r} jump ${d}(zoxide)${r}   ${b}gst ga gcm gp${r} ${d}git${r}
+    ${b}v${r} nvim   ${b}lg${r} lazygit   ${b}zj${r} zellij   ${b}z DIR${r} jump ${d}(zoxide)${r}   ${b}stack${r} this sheet
+    ${b}rg TEXT${r} in files   ${b}fd NAME${r} find files   ${b}bat FILE${r} view   ${b}mise ls${r} tools
+    ${b}gst${r} status  ${b}gd${r} diff  ${b}ga${r} add  ${b}gcmsg${r} "msg"  ${b}gp${r} push  ${b}gl${r} pull  ${b}gco${r} switch
     ${b}Ctrl+R${r} fuzzy history   ${b}Ctrl+T${r} find file   ${b}↑ ↓${r} prefix   ${b}→${r} accept hint
 
   ${b}Forgot a key?${r}
-    ${b}Ctrl+a ?${r} ${d}or${r} ${b}Ctrl+Space ?${r}   this sheet ${d}(any key closes it)${r}
-    ${b}Ctrl+Shift+P${r} WezTerm palette ${d}(search)${r}   ${b}prefix ?${r} tmux keys
-    ${b}Space${r} and wait: LazyVim which-key ${d}— these three read the live config${r}
+    ${b}Ctrl+a ?${r} ${d}or${r} ${b}Ctrl+Space ?${r} this sheet ${d}(any key closes it)${r}   ${b}prefix ?${r} tmux
+    ${b}Ctrl+Shift+P${r} WezTerm palette   ${b}Space${r} and wait: LazyVim which-key ${d}— live${r}
 
   ${b}Maintenance${r} ${d}— local tweaks outside git: machine.lua, ~/.zshrc.local${r}
-    ${b}setup.sh${r} install ${d}(--clean resolves)${r}   ${b}update.sh${r} snapshot + rollback
+    ${b}setup.sh${r} install ${d}(--clean resolves)${r}   ${b}update.sh${r} ${d}(--rollback undoes it)${r}
     ${b}check.sh${r} verify layers   ${b}preflight.sh${r} conflicts   ${b}stack${r} show this again
 
 TXT

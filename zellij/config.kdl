@@ -144,9 +144,10 @@ keybinds {
                 close_on_exit true
                 name "colinha"
                 // The floating pane default is 20 lines and the cheatsheet
-                // has 33: without this the top is born off screen. In
-                // percentages to follow the window instead of guessing
-                // columns.
+                // has 47: without this the top is born off screen — and the
+                // top is where the four layers are, because a pane that
+                // overflows scrolls and keeps the END. In percentages to
+                // follow the window instead of guessing columns.
                 height "95%"
                 width "95%"
                 x "2%"

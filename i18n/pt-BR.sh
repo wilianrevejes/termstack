@@ -492,27 +492,40 @@ msg_cheatsheet() {
     ${b}|${r} ${b}-${r} divide   ${b}h j k l${r} navega   ${b}x${r} fecha   ${b}z${r} zoom   ${b}c n p${r} abas   ${b}[${r} copy
     ${d}só WezTerm${r}  ${b}H J K L${r} redimensiona   ${b}1${r}…${b}9${r} aba N   ${b}espaço${r} launcher
                 ${b}Ctrl+a${r} de novo manda Ctrl+a literal para o shell
-    ${d}só Zellij${r}   ${b}f${r} flutuante   ${b}s${r} sessões   ${b}w${r} gerenciador   ${b}Esc${r} trava
+    ${d}só Zellij${r}   ${b}f${r} flutuante   ${b}s${r} sessões   ${b}w${r} gerenciador   ${b}d${r} solta   ${b}Esc${r} trava
                 ${b}espaço${r} cicla layout ${d}(vertical / horizontal / empilhado)${r}
-                ${d}zj -n dev abre nvim+terminal · zj attach NOME · zj ls${r}
+    ${d}só tmux${r}     ${b}z${r} zoom   ${b}s${r} sessões   ${b}d${r} solta   ${b}r${r} recarrega   ${b}1${r}…${b}9${r} janela N
+                ${b}I${r} instala plugins   ${b}U${r} atualiza   ${b}?${r} todas as teclas
+
+  ${b}Abrir o LazyVim num projeto${r} ${d}— ele abre onde o SHELL está: cd antes${r}
+    ${d}nesta pane${r}    ${b}cd ~/proj${r} ${d}e então${r} ${b}v${r}   ${d}(v = nvim · z proj salta pra lá)${r}
+    ${d}em outra${r}      ${b}Ctrl+Space c${r} ${d}aba ou${r} ${b}| -${r} ${d}pane — mesma pasta, e então${r} ${b}v${r}
+    ${d}outra pasta${r}   ${b}zj action new-tab -c ~/outra${r} ${d}e então${r} ${b}v${r}
+    ${d}no tmux${r}       ${b}prefix c | -${r} ${d}herdam igual ·${r} ${b}tmux neww -c ~/outra nvim${r}
+    ${d}sessão nova${r}   ${b}cd ~/proj && zj -s proj -n dev${r} ${d}— nvim + terminal prontos${r}
+    ${d}voltar${r}        ${b}zj a -f proj${r}   ${d}·${r}   ${b}tmux a -t proj${r}   ${d}(lista: zj ls · tmux ls)${r}
 
   ${b}LazyVim — Espaço e depois${r}
     ${b}espaço${r} arquivo   ${b}/${r} grep   ${b},${r} buffers   ${b}e${r} árvore   ${b}f r${r} recentes
-    ${b}g g${r} lazygit   ${b}b b${r} buffer anterior   ${b}c d${r} diagnóstico   ${b}q q${r} sai
-    ${b}|${r} ${b}-${r} divide a janela   ${b}Ctrl+h/j/k/l${r} janelas   ${b}Ctrl+/${r} terminal   ${b}l${r} :Lazy
-    ${d}:LazyExtras liga e desliga extras   :LazyHealth diagnóstico${r}
+    ${b}g g${r} lazygit   ${b}b b${r} buffer anterior   ${b}b d${r} fecha buffer   ${b}q q${r} sai   ${b}l${r} :Lazy
+    ${b}s w${r} grep da palavra sob o cursor   ${b}s k${r} todas as teclas   ${b}q s${r} sessão
+    ${b}c d${r} diagnóstico   ${b}c a${r}${d}*${r} ação de código   ${b}c r${r}${d}*${r} renomeia   ${d}* precisa de LSP${r}
+    ${b}|${r} ${b}-${r} divide a janela   ${d}:LazyExtras${r} extras   ${d}:LazyHealth${r} diagnóstico
+    ${d}sem Espaço:${r} ${b}g d${r}${d}*${r} definição   ${b}g r${r}${d}*${r} referências   ${b}] d${r} ${b}[ d${r} diagnóstico
+                ${b}K${r}${d}*${r} docs   ${b}H L${r} buffers   ${b}Ctrl+h/j/k/l${r} janelas   ${b}Ctrl+/${r} terminal
 
   ${b}Shell${r}
-    ${b}v${r} nvim   ${b}lg${r} lazygit   ${b}zj${r} zellij   ${b}z DIR${r} salta ${d}(zoxide)${r}   ${b}gst ga gcm gp${r} ${d}git${r}
+    ${b}v${r} nvim   ${b}lg${r} lazygit   ${b}zj${r} zellij   ${b}z DIR${r} salta ${d}(zoxide)${r}   ${b}stack${r} colinha
+    ${b}rg TEXTO${r} nos arquivos   ${b}fd NOME${r} acha arquivo   ${b}bat ARQ${r} vê   ${b}mise ls${r} tools
+    ${b}gst${r} status  ${b}gd${r} diff  ${b}ga${r} add  ${b}gcmsg${r} "msg"  ${b}gp${r} push  ${b}gl${r} pull  ${b}gco${r} troca
     ${b}Ctrl+R${r} histórico fuzzy   ${b}Ctrl+T${r} arquivo   ${b}↑ ↓${r} prefixo   ${b}→${r} aceita sugestão
 
   ${b}Esqueceu uma tecla?${r}
-    ${b}Ctrl+a ?${r} ${d}ou${r} ${b}Ctrl+Space ?${r}   esta colinha ${d}(fecha com qualquer tecla)${r}
-    ${b}Ctrl+Shift+P${r} palette do WezTerm ${d}(busca)${r}   ${b}prefixo ?${r} teclas do tmux
-    ${b}Espaço${r} e espere: which-key do LazyVim ${d}— os três leem a config viva${r}
+    ${b}Ctrl+a ?${r} ${d}ou${r} ${b}Ctrl+Space ?${r} esta colinha ${d}(fecha com qualquer tecla)${r}
+    ${b}Ctrl+Shift+P${r} palette   ${b}prefixo ?${r} tmux   ${b}Espaço${r} e espere: which-key ${d}— vivo${r}
 
   ${b}Manutenção${r} ${d}— ajustes locais fora do git: machine.lua, ~/.zshrc.local${r}
-    ${b}setup.sh${r} instala ${d}(--clean resolve)${r}   ${b}update.sh${r} snapshot + rollback
+    ${b}setup.sh${r} instala ${d}(--clean resolve)${r}   ${b}update.sh${r} ${d}(--rollback desfaz)${r}
     ${b}check.sh${r} confere as camadas   ${b}preflight.sh${r} conflitos   ${b}stack${r} repete
 
 TXT

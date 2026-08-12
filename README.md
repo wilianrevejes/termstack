@@ -135,7 +135,7 @@ stack                                   # alias, available in the repository's s
 bash ~/.config/wezterm/scripts/cheatsheet.sh
 ```
 
-Or by key: `Ctrl+a ?` in WezTerm, `Ctrl+Space ?` inside Zellij. Both open it in a pane that closes on any key.
+Or by key: `Ctrl+a ?` in WezTerm, `Ctrl+Space ?` inside Zellij. Both close on any key — WezTerm opens it in a tab and Zellij in a floating pane, because the sheet is taller than a split.
 
 ## Language
 
@@ -236,7 +236,7 @@ Zellij and tmux share a prefix on purpose: they never run at the same time, and 
 | the prefix, twice | sends the literal prefix through |
 
 WezTerm only: `LEADER H J K L` resizes, `LEADER 1..9` jumps to tab N, `LEADER space` opens the launcher, `LEADER ?` opens the cheatsheet.
-Zellij only: `Ctrl+Space f` toggles floating panes, `Ctrl+Space w` opens the session manager, `Ctrl+Space ?` opens the cheatsheet, `Esc` always returns to locked.
+Zellij only: `Ctrl+Space f` toggles floating panes, `Ctrl+Space w` opens the session manager, `Ctrl+Space space` cycles the swap layouts, `Ctrl+Space d` detaches, `Ctrl+Space ?` opens the cheatsheet, `Esc` always returns to locked.
 tmux only: `prefix r` reloads, `prefix I` installs plugins, `prefix U` updates them, `prefix ?` lists every binding.
 
 **Three known collisions, all with an escape hatch:**
@@ -244,6 +244,26 @@ tmux only: `prefix r` reloads, `prefix I` installs plugins, `prefix U` updates t
 1. `Ctrl+a` shadows readline's start-of-line. Escape: `Ctrl+a Ctrl+a`.
 2. `Ctrl+Space` shadows blink.cmp (LazyVim's manual completion). Escape: press the prefix twice, or remap the trigger to `<C-n>`.
 3. `Ctrl+g` shadows Vim's `:file` — it is Zellij's emergency entrance if `Ctrl+Space` never arrives. `:f` does the same thing.
+
+### Open a project
+
+Neovim never changes its working directory: a path argument opens a buffer and leaves the cwd wherever the shell was. LazyVim's root detection recovers from that for a **file** argument, but `persistence.nvim` keys the session file off `getcwd()` alone, with no fallback — so the session silently becomes a different one. **`cd` first and all three (grep, lazygit, sessions) agree.**
+
+```bash
+cd ~/proj && v                      # v = nvim; z proj jumps there by frecency
+zj -s proj -n dev                   # new Zellij session: nvim + terminal, both rooted here
+zj a -f proj                        # back to it later (-f re-runs the layout's commands)
+```
+
+Already inside a multiplexer there is nothing special to type: `Ctrl+Space c` (Zellij) and `prefix c` (tmux) open a tab that **inherits the focused pane's cwd**, and so do the `|` and `-` panes — so `cd` once, then `v` in whichever pane you want the editor. For another directory without leaving this one:
+
+```bash
+zj action new-tab -c ~/other        # Zellij: -c is --cwd here, and ONLY on new-tab
+                                    # then type v in the new tab
+tmux neww -c ~/other nvim           # tmux: same idea, and it takes the command too
+```
+
+Two traps worth knowing. On `zellij run` and `zellij action new-pane`, `-c` means `--close-on-exit`, not `--cwd` (the long form is the only one that sets a directory there). And `-l dev` adds the layout as a tab, but swap layouts are session-scoped: only a session started with `-n dev` gets the `vertical / horizontal / stacked` cycle from `zellij/layouts/dev.swap.kdl`.
 
 ## Verify
 
