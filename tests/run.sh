@@ -689,6 +689,41 @@ if group regressao "regression — bugs that already happened here"; then
   folha_en="$(TERMSTACK_LANG=en bash "$repo_dir/scripts/cheatsheet.sh" |
     sed $'s/\033\\[[0-9;]*m//g')"
 
+  # No. 29: every script resolves its own directory to run from anywhere, and
+  # they all did it with a LOGICAL pwd. Invoked through a symlink to the
+  # repository — which is exactly what ~/.config/wezterm is, and what the
+  # cheat sheet tells you to type — repo_dir kept the symlinked path, while
+  # `readlink` on the config links answers with the physical one. check.sh then
+  # reported two links as broken while they were perfectly correct, and a
+  # bootstrap run that way would have CREATED links pointing at the link.
+  #
+  # The line is taken from each script instead of retyped here: this has to
+  # keep testing what they really do, not what this test remembers.
+  h="$(sandbox)"
+  cp -R "$repo_dir" "$h/repo" 2>/dev/null
+  ln -s "$h/repo" "$h/link"
+  esperado="$(cd "$h/repo" && pwd -P)"
+  falta=""
+
+  for s in check preflight setup update cheatsheet bootstrap-macos bootstrap-linux; do
+    linha="$(grep -m1 '^repo_dir=' "$h/repo/scripts/$s.sh")"
+    {
+      printf '%s\n' "$linha"
+      # shellcheck disable=SC2016  # $repo_dir expands in the probe, not here
+      printf 'printf "%%s\\n" "$repo_dir"\n'
+    } >"$h/repo/scripts/probe-$s.sh"
+
+    obtido="$(bash "$h/link/scripts/probe-$s.sh" 2>/dev/null)"
+    [[ "$obtido" == "$esperado" ]] || falta="$falta $s:$obtido"
+  done
+  rm -rf "$h"
+
+  if [[ -z "$falta" ]]; then
+    ok "every script resolves the repository through a symlink to the real path"
+  else
+    no "a script called through a symlink keeps the symlinked path" "$falta"
+  fi
+
   # No. 28: the drift test above starts from a list of seven actions, so a bind
   # outside that list can live in config/keys.lua without ever reaching the
   # sheet — which is exactly what LEADER H J K L, LEADER 1..9, the launcher and

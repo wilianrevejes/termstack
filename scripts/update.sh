@@ -15,7 +15,7 @@
 
 set -uo pipefail
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 # shellcheck source-path=SCRIPTDIR source=_common.sh
 source "$repo_dir/scripts/_common.sh"

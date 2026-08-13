@@ -9,7 +9,7 @@
 
 set -uo pipefail
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 # Brings in the UI_* palette and the message catalog for the active language.
 # shellcheck source-path=SCRIPTDIR source=_common.sh
