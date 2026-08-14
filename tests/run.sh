@@ -171,7 +171,9 @@ if group estatico "static — is the code even valid?"; then
   # own parser (the analogue of bash -n / luac -p). Skipped where pwsh is
   # absent, like the author's macOS/Linux boxes.
   if command -v pwsh >/dev/null 2>&1; then
-    for f in scripts/bootstrap-windows.ps1 scripts/setup-windows.ps1 pwsh/profile.ps1; do
+    for f in scripts/bootstrap-windows.ps1 scripts/setup-windows.ps1 \
+      scripts/_common-windows.ps1 scripts/update-windows.ps1 \
+      tests/windows-units.ps1 pwsh/profile.ps1; do
       if (cd "$repo_dir" && pwsh -NoProfile -NonInteractive -Command \
         "\$t=\$null;\$e=\$null;[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '$f'),[ref]\$t,[ref]\$e)>\$null;exit([int](\$e.Count -gt 0))") 2>/dev/null; then
         ok "powershell syntax: $(basename "$f")"
@@ -322,6 +324,28 @@ if group unidade "unit — _common.sh functions in isolation"; then
     ok "mise/config.toml lists the 10 CLIs"
   else
     no "mise/config.toml has $(wc -l <<<"$tools") tools, expected 10"
+  fi
+
+  # The Windows half: _common-windows.ps1 functions in isolation, in a
+  # throwaway %LOCALAPPDATA%. One pwsh process for the whole file — starting one
+  # per check costs half a second each — and each line it prints becomes a line
+  # of this suite. Anything that is not ok|/no| is a crash in the unit script
+  # itself, and counts as a failure instead of vanishing.
+  if command -v pwsh >/dev/null 2>&1; then
+    win_repo="$repo_dir"
+    command -v cygpath >/dev/null 2>&1 && win_repo="$(cygpath -w "$repo_dir")"
+
+    while IFS='|' read -r verdict desc detail; do
+      case "$verdict" in
+        ok) ok "$desc" ;;
+        no) no "$desc" "$detail" ;;
+        '') ;;
+        *) no "windows units printed something unexpected" "$verdict$desc" ;;
+      esac
+    done < <(TS_REPO="$win_repo" pwsh -NoProfile -NonInteractive \
+      -File "$repo_dir/tests/windows-units.ps1" 2>&1)
+  else
+    na "pwsh not installed (Windows _common units not exercised)"
   fi
 fi
 
@@ -1398,6 +1422,37 @@ if group seguranca "security — what must never happen"; then
     ok "no .backup/ inside the repository"
   fi
 
+  # Same promise on the Windows side: the snapshot carries a copy of the user's
+  # $PROFILE, which is where an SDK path or a token lives on that machine.
+  # Get-BackupRoot must build from %LOCALAPPDATA%, never from the script's own
+  # directory.
+  bkroot="$(grep -A3 'function Get-BackupRoot' "$repo_dir/scripts/_common-windows.ps1")"
+
+  if grep -qE '\$env:LOCALAPPDATA' <<<"$bkroot"; then
+    ok "the Windows backup root is built from %LOCALAPPDATA%"
+  else
+    no "the Windows backup root does not come from %LOCALAPPDATA%" "$bkroot"
+  fi
+
+  if grep -qE '\$PSScriptRoot|\$repoDir|\$RepoDir' <<<"$bkroot"; then
+    no "the Windows backup root is derived from the repository directory"
+  else
+    ok "the Windows snapshots stay outside the repository tree"
+  fi
+
+  # `winget upgrade --all` would drag every unrelated program on the machine
+  # along with the update — an update script has no business upgrading the
+  # user's browser or their company VPN client.
+  # Comment lines stripped first: the reason NOT to do it is written down in
+  # _common-windows.ps1, and a scan that reads its own rationale as a violation
+  # is a test that fails the moment someone documents the rule.
+  if grep -hvE '^[[:space:]]*#' "$repo_dir"/scripts/*.ps1 |
+    grep -qE 'winget upgrade.*--all'; then
+    no "a Windows script runs winget upgrade --all"
+  else
+    ok "the Windows update only upgrades the stack's own packages"
+  fi
+
   # ~/.config/nvim and ~/.local/state/nvim fall into the same --clean and have
   # the same basename. With the backup named by basename, the second cp -R
   # went INSIDE the first — scrambling the copy that undoes the destructive
@@ -1482,6 +1537,44 @@ if group integracao "integration — the full flow, in a throwaway HOME"; then
       bash -c "cd '$repo_dir' && exec pwsh -NoProfile -NonInteractive -File scripts/setup-windows.ps1 -does-not-exist"
     t "setup-windows -DryRun exits 0 and mutates nothing" 0 \
       bash -c "cd '$repo_dir' && exec pwsh -NoProfile -NonInteractive -File scripts/setup-windows.ps1 -DryRun"
+
+    t "update-windows rejects an unknown argument" 64 \
+      bash -c "cd '$repo_dir' && exec pwsh -NoProfile -NonInteractive -File scripts/update-windows.ps1 -does-not-exist"
+    t "update-windows -DryRun exits 0" 0 \
+      bash -c "cd '$repo_dir' && exec pwsh -NoProfile -NonInteractive -File scripts/update-windows.ps1 -DryRun"
+
+    # With %LOCALAPPDATA% pointed at an empty directory there is no snapshot to
+    # go back to, and the rollback has to SAY so and exit non-zero. The bug it
+    # guards against is the opposite: printing "restoring" and exiting 0 having
+    # restored nothing.
+    h="$(sandbox)"
+    win_h="$h"
+    command -v cygpath >/dev/null 2>&1 && win_h="$(cygpath -w "$h")"
+
+    rb_out="$(env LOCALAPPDATA="$win_h" pwsh -NoProfile -NonInteractive \
+      -File "$repo_dir/scripts/update-windows.ps1" -Rollback 2>&1)"
+    rb_rc=$?
+
+    # The exit code alone is not enough: on a machine where the stack is not
+    # wired the script exits 1 anyway, and the test would pass while the
+    # rollback silently restored nothing. The message is what proves it noticed.
+    if [[ "$rb_rc" -ne 0 ]] && grep -q 'no snapshot to restore from' <<<"$rb_out"; then
+      ok "update-windows -Rollback with no snapshot says so and fails"
+    else
+      no "update-windows -Rollback with no snapshot" "exit $rb_rc: $(head -1 <<<"$rb_out")"
+    fi
+
+    # -DryRun is the mode you can run to see what it would touch: it must not
+    # create the backup root, let alone a snapshot.
+    env LOCALAPPDATA="$win_h" pwsh -NoProfile -NonInteractive \
+      -File "$repo_dir/scripts/update-windows.ps1" -DryRun >/dev/null 2>&1
+
+    if [[ -d "$h/termstack/backup" ]]; then
+      no "update-windows -DryRun wrote a snapshot"
+    else
+      ok "update-windows -DryRun writes nothing"
+    fi
+    rm -rf "$h"
   else
     na "pwsh not installed (setup-windows.ps1 behavior not exercised)"
   fi
