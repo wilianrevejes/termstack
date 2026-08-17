@@ -22,6 +22,7 @@ mise/config.toml         CLI versions, under version control
 machine.example.lua      template for the per-machine tweak
 scripts/setup.sh         entry point: preflight + bootstrap + check
 scripts/update.sh        updates everything, with snapshot and rollback
+scripts/*-windows.ps1    the same two, for the native Windows stack
 ```
 
 ## Install
@@ -203,6 +204,22 @@ bash scripts/update.sh --rollback ~/.local/state/termstack/backup/20260731-14000
 ```
 
 Tool versions are not reverted automatically — a downgrade costs a download and is rarely the cause. The previous versions are recorded in the snapshot.
+
+### On native Windows
+
+`update.sh` is Unix-only: it links into `~/.config`, drives `mise`/`brew` and updates zsh, oh-my-zsh and tmux — none of which is the native Windows stack. That stack has its own command, with the same promises:
+
+```powershell
+.\scripts\update-windows.ps1             # update everything
+.\scripts\update-windows.ps1 -DryRun     # what it would do; changes nothing
+.\scripts\update-windows.ps1 -Rollback   # back to the latest snapshot
+```
+
+Same order — snapshot, `git pull`, re-wire, tools, Neovim plugins, verify — with the Windows equivalents in each slot: the wiring is the `%LOCALAPPDATA%\nvim` junction plus the generated `%APPDATA%\Zellij\config\config.kdl` and the `$PROFILE` block, and the tools come from **winget**, one package at a time. Never `winget upgrade --all`: the update has no business upgrading your browser.
+
+The snapshot lives in `%LOCALAPPDATA%\termstack\backup\<timestamp>\` and keeps the repository SHA, `machine.lua`, both lockfiles, the tool versions, where the links pointed and a copy of your `$PROFILE`. Verification failing rolls the machine back on its own, exactly like the Unix side.
+
+Inside a WSL distro, keep using `bash scripts/update.sh` — the two stacks update separately, and keep their snapshots apart.
 
 Offline, the script skips everything that needs the network and still redoes the links and the local config.
 
