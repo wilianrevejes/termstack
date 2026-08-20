@@ -183,6 +183,11 @@ Check "the winget package list is shared and complete" {
     ($ids -contains 'wez.wezterm') -and
     ($ids -contains 'Neovim.Neovim') -and
     ($ids -contains 'Zellij.Zellij') -and
+    # node is mise's on every machine. winget's node is `latest`; the projects
+    # want the `lts` that mise/config.toml pins, and two node managers on one
+    # box is how a machine ends up on a version nobody chose.
+    ($ids -contains 'jdx.mise') -and
+    ($ids -notcontains 'OpenJS.NodeJS') -and
     (@($TermstackPackages | Where-Object { -not $_.Name }).Count -eq 0) -and
     ($bootstrap -match '\$TermstackPackages') -and
     ($bootstrap -notmatch 'Install-IfMissing -Id "')
@@ -200,6 +205,41 @@ Check "the update installs a package that is missing, not only upgrades" {
     # The gate that was wrong: its exit code answers "is it installed", never
     # "is there an upgrade".
     ($fn -notmatch 'list .*--upgrade-available')
+}
+
+# ---- node's channel ------------------------------------------------------
+
+# ONE source of truth for the node line, shared with the four Unix machines. If
+# the Windows side ever grew its own copy, the boxes would drift apart on the
+# one tool whose version the projects actually care about.
+Check "Get-MiseNodeChannel reads the channel out of the shared mise/config.toml" {
+    $channel = Get-MiseNodeChannel $repo
+    $toml = [IO.File]::ReadAllText((Join-Path $repo 'mise\config.toml'))
+    $script:Detail = "channel was '$channel'"
+    ($channel) -and ($toml -match ('(?m)^node\s*=\s*"' + [regex]::Escape($channel) + '"'))
+}
+
+Check "Get-MiseNodeChannel survives a repo with no mise config" {
+    $null -eq (Get-MiseNodeChannel (Join-Path $sandbox 'nowhere'))
+}
+
+# The rollback trap: Bad in Test-TermstackStack increments CheckFailures, and
+# update-windows.ps1 rolls the machine back on that. A node download that did
+# not finish must never undo a good pull, so every mise check warns.
+Check "the node checks warn and never fail the stack" {
+    $common = [IO.File]::ReadAllText((Join-Path $repo 'scripts\_common-windows.ps1'))
+    $section = [regex]::Match($common, '(?ms)Section "node".*?Section "tools"').Value
+    $script:Detail = if ($section) { 'a node check calls Bad - that arms the automatic rollback' } else { 'the node section is gone' }
+    ($section) -and ($section -notmatch '(?m)^\s*Bad ')
+}
+
+# Set-TermstackWiring is documented offline-safe and runs on the rollback path.
+# A `mise use -g` in there downloads node while undoing an update.
+Check "the wiring stays offline: no mise in Set-TermstackWiring" {
+    $common = [IO.File]::ReadAllText((Join-Path $repo 'scripts\_common-windows.ps1'))
+    $fn = [regex]::Match($common, '(?ms)^function Set-TermstackWiring \{.*?^\}').Value
+    $script:Detail = if ($fn) { 'Set-TermstackWiring reaches the network' } else { 'Set-TermstackWiring not found' }
+    ($fn) -and ($fn -notmatch 'Install-MiseNode') -and ($fn -notmatch 'mise')
 }
 
 # ---- winget's exit codes -------------------------------------------------

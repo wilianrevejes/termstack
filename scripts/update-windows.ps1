@@ -107,6 +107,7 @@ if ($DryRun) {
     Note "2  git pull --rebase --autostash"
     Note "3  re-wire: machine.lua, the nvim junction, the zellij config, the pwsh profile"
     Note "4  winget, package by package: install what is missing, upgrade the rest ($($TermstackPackages.Count))"
+    Note "   plus node@$(Get-MiseNodeChannel $repoDir) through mise, never through winget"
     Note "5  nvim +Lazy! install / restore, if nvim/ changed in the pull"
     Note "6  verify, and roll back on its own if the verification fails"
 
@@ -171,6 +172,10 @@ if ($online) {
     # process's. The Neovim step below and the verification both ask
     # `Get-Command`, and both would answer "not here" for a tool sitting on disk.
     Update-ProcessPath
+
+    # node rides mise, not the winget list: the channel comes from the versioned
+    # mise/config.toml, so this box stays on the same node line as the others.
+    Install-MiseNode $repoDir
 
     # ---- 5. Neovim. With a gate: this is the expensive step. -------------
 

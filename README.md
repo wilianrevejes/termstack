@@ -76,7 +76,7 @@ The powerlevel10k wizard **does not detect fonts** — it records the mode based
 
 That is why step 4 only *offers* the wizard, with a warning: run it inside a WezTerm that already has the font. It rewrites the **repository's** `zsh/p10k.zsh` (not `~/.p10k.zsh`), so one answer covers every machine once you commit it.
 
-Windows has **two independent setups**. `setup-windows.ps1` installs the **native** stack via winget — WezTerm, the Nerd Font, **Zellij** (native since v0.44), **Neovim/LazyVim**, and the CLI tools (ripgrep, fd, lazygit, fzf, zoxide, bat, node, plus `zig` for treesitter) — wires their configs, and runs **pwsh** as the shell. No WSL required. What the native flow does **not** include: **zsh/oh-my-zsh/powerlevel10k** and **tmux**, which are Unix-only.
+Windows has **two independent setups**. `setup-windows.ps1` installs the **native** stack via winget — WezTerm, the Nerd Font, **Zellij** (native since v0.44), **Neovim/LazyVim**, and the CLI tools (ripgrep, fd, lazygit, fzf, zoxide, bat, plus `zig` for treesitter and `mise`, which owns **node**) — wires their configs, and runs **pwsh** as the shell. No WSL required. What the native flow does **not** include: **zsh/oh-my-zsh/powerlevel10k** and **tmux**, which are Unix-only.
 
 For that zsh/tmux layer, run the **Linux setup** inside a WSL distro (or any Linux), on the distro filesystem (not `/mnt/c`):
 
@@ -96,7 +96,7 @@ The CLI tools come from [`mise`](https://mise.jdx.dev), which downloads prebuilt
 | Tool | Source |
 |---|---|
 | neovim, zellij, tmux, lazygit, ripgrep, fd, fzf, zoxide, bat | `mise`, always `@latest` |
-| node | `mise`, `lts` channel |
+| node | `mise`, `lts` channel — **on Windows too**, never winget |
 | oh-my-zsh, powerlevel10k, zsh and tmux plugins | `git clone`, updated by `update.sh` |
 | WezTerm | Homebrew / winget / distro repo |
 | JetBrainsMono Nerd Font | Homebrew / winget, or a direct release download |

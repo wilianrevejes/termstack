@@ -324,7 +324,12 @@ $TermstackPackages = @(
     @{ Id = 'junegunn.fzf';                 Name = 'fzf' }
     @{ Id = 'ajeetdsouza.zoxide';           Name = 'zoxide' }
     @{ Id = 'sharkdp.bat';                  Name = 'bat' }
-    @{ Id = 'OpenJS.NodeJS';                Name = 'Node.js' }
+    # NOT OpenJS.NodeJS. node is the one tool whose version is a per-project
+    # fact, not a machine fact, so mise owns it on every OS -- the same rule the
+    # Unix side has always had. winget's node is `latest` (26.7.0 here) where
+    # mise/config.toml asks for `lts` (24.19.0), which is what the projects
+    # expect. See Install-MiseNode below.
+    @{ Id = 'jdx.mise';                     Name = 'mise' }
     # The C compiler nvim-treesitter needs to build parsers.
     @{ Id = 'zig.zig';                      Name = 'zig (C compiler)' }
 )
@@ -420,6 +425,55 @@ function Update-TermstackPackages {
         }
 
         Remove-Item $log -ErrorAction SilentlyContinue
+    }
+}
+
+# ---- node, through mise --------------------------------------------------
+
+# The channel lives in ONE place, mise/config.toml, versioned and shared with
+# the Unix machines. Pure, so the suite can pin it: a Windows box quietly on a
+# different node line from the other four is the whole thing this avoids.
+function Get-MiseNodeChannel {
+    param([string] $RepoDir)
+    $toml = Join-Path $RepoDir 'mise\config.toml'
+    if (-not (Test-Path $toml)) { return $null }
+    $m = [regex]::Match([IO.File]::ReadAllText($toml), '(?m)^node\s*=\s*"([^"]+)"')
+    if ($m.Success) { return $m.Groups[1].Value }
+    return $null
+}
+
+# `mise use -g` and not a generated config file: unlike the zellij one, this
+# path is mise's OWN file and the user writes to it too (`mise use -g <tool>`).
+# It MERGES into [tools] instead of replacing the file, so a config that was
+# already there survives -- the same promise link_config makes on Unix.
+#
+# Network, so it never goes in Set-TermstackWiring: that runs offline and on the
+# rollback path, where a download would turn an undo into a hang.
+function Install-MiseNode {
+    param([string] $RepoDir)
+
+    # The channel first, so even the "do it by hand" advice quotes the versioned
+    # file instead of a number written here.
+    $channel = Get-MiseNodeChannel $RepoDir
+    if (-not $channel) { Warn "no node channel in mise/config.toml - skipping node"; return }
+
+    $mise = Get-Command mise -ErrorAction SilentlyContinue
+    if (-not $mise) {
+        Warn "mise not on PATH yet - open a new terminal, then run:  mise use -g node@$channel"
+        return
+    }
+
+    Run "mise use -g node@$channel"
+    & $mise.Source use -g "node@$channel" *> $null
+
+    if ($LASTEXITCODE -eq 0) {
+        $where = & $mise.Source which node 2>$null
+        if ($where) { Ok "node from mise ($(& $mise.Source exec -- node --version 2>$null))" }
+        else { Ok "node pinned to $channel" }
+    } else {
+        # Same posture as the winget failures: a node that did not download is a
+        # nuisance, not a reason to undo the whole update.
+        Warn "mise exited $LASTEXITCODE - install node by hand:  mise use -g node@$channel"
     }
 }
 
@@ -699,6 +753,26 @@ function Test-TermstackStack {
         Ok "the pwsh profile loads this repo"
     } else {
         Bad "the pwsh profile does not load $RepoDir\pwsh\profile.ps1"; $script:CheckFailures++
+    }
+
+    Section "node"
+    # Every check here WARNS and never fails. Bad would increment CheckFailures,
+    # and in update-windows.ps1 that rolls the machine back -- a node download
+    # that did not finish is not a reason to undo a good pull. `node` also stays
+    # out of the PATH loop below: mise's shims are not on PATH by design, node
+    # arrives through `mise activate` in the pwsh profile.
+    $miseBin = Get-Command mise -ErrorAction SilentlyContinue
+    if (-not $miseBin) {
+        Warn "mise not on PATH - node comes from mise on every machine"
+    } else {
+        $nodePath = & $miseBin.Source which node 2>$null
+        if ($nodePath) { Ok "node comes from mise" } else { Warn "mise has no node - run:  mise use -g node@$(Get-MiseNodeChannel $RepoDir)" }
+
+        # A node from anywhere else shadows the pinned one depending on PATH
+        # order, which is exactly the drift mise exists to stop.
+        $strays = @(Get-Command node -All -ErrorAction SilentlyContinue |
+            Where-Object { $_.Source -and $_.Source -notmatch '\\mise\\' })
+        foreach ($s in $strays) { Warn "node outside mise on PATH: $($s.Source)" }
     }
 
     Section "tools"

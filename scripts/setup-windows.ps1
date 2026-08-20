@@ -88,9 +88,14 @@ Step "diagnose" "the native Windows stack - what is already here?"
 
 Note ("PowerShell {0}" -f $PSVersionTable.PSVersion)
 
+# What is on the MACHINE, not what this process happened to inherit. A shell
+# opened before the last run reports half the stack as missing otherwise, and
+# the diagnosis is the one step whose whole job is to be accurate.
+Update-ProcessPath
+
 $hasWinget  = [bool] (Get-Command winget.exe  -ErrorAction SilentlyContinue)
 if ($hasWinget)  { Ok "winget present" } else { Warn "winget missing - needed to install the stack" }
-foreach ($t in @('wezterm', 'nvim', 'zellij', 'git', 'rg', 'fd', 'node')) {
+foreach ($t in @('wezterm', 'nvim', 'zellij', 'git', 'rg', 'fd', 'mise')) {
     if (Get-Command $t -ErrorAction SilentlyContinue) { Ok "$t installed" } else { Skip "$t not installed yet" }
 }
 
@@ -106,8 +111,9 @@ if ($repoDir -eq $configHome) {
 if ($DryRun) {
     Note "dry run - nothing will be installed or changed"
     Note "would install:  WezTerm, the Nerd Font, Neovim, Zellij, git, ripgrep, fd,"
-    Note "                lazygit, fzf, zoxide, bat, node, zig"
+    Note "                lazygit, fzf, zoxide, bat, mise, zig"
     Note "would wire:  nvim + zellij configs, the pwsh profile, EDITOR=nvim"
+    Note "would pin:   node@$(Get-MiseNodeChannel $repoDir) through mise"
     ResOk "diagnose only (dry run)"
     exit 0
 }
@@ -136,6 +142,10 @@ try {
 # still holding the PATH it started with. Without this, step 4 finds no nvim and
 # skips the LazyVim bootstrap on exactly the machines that need it most.
 Update-ProcessPath
+
+# node is mise's, not winget's, on Windows exactly as on the other machines.
+# After Update-ProcessPath, so the mise that just landed is reachable.
+Install-MiseNode $repoDir
 
 if ($repoDir -eq $configHome) {
     Skip "wezterm config already at ~\.config\wezterm"
