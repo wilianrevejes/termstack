@@ -132,6 +132,11 @@ try {
     Remove-Item Env:\TERMSTACK_FROM_SETUP -ErrorAction SilentlyContinue
 }
 
+# winget has just written the new entries into the registry, and this process is
+# still holding the PATH it started with. Without this, step 4 finds no nvim and
+# skips the LazyVim bootstrap on exactly the machines that need it most.
+Update-ProcessPath
+
 if ($repoDir -eq $configHome) {
     Skip "wezterm config already at ~\.config\wezterm"
 } elseif ($env:WEZTERM_CONFIG_FILE) {

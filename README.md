@@ -215,7 +215,7 @@ Tool versions are not reverted automatically — a downgrade costs a download an
 .\scripts\update-windows.ps1 -Rollback   # back to the latest snapshot
 ```
 
-Same order — snapshot, `git pull`, re-wire, tools, Neovim plugins, verify — with the Windows equivalents in each slot: the wiring is the `%LOCALAPPDATA%\nvim` junction plus the generated `%APPDATA%\Zellij\config\config.kdl` and the `$PROFILE` block, and the tools come from **winget**, one package at a time. Never `winget upgrade --all`: the update has no business upgrading your browser.
+Same order — snapshot, `git pull`, re-wire, tools, Neovim plugins, verify — with the Windows equivalents in each slot: the wiring is the `%LOCALAPPDATA%\nvim` junction plus the generated `%APPDATA%\Zellij\config\config.kdl` and the `$PROFILE` block, and the tools come from **winget**, one package at a time — **installing what is missing and upgrading the rest**, so a machine bootstrapped before a tool joined the list still gets it. Never `winget upgrade --all`: the update has no business upgrading your browser.
 
 The snapshot lives in `%LOCALAPPDATA%\termstack\backup\<timestamp>\` and keeps the repository SHA, `machine.lua`, both lockfiles, the tool versions, where the links pointed and a copy of your `$PROFILE`. Verification failing rolls the machine back on its own, exactly like the Unix side.
 

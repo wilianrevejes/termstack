@@ -106,7 +106,7 @@ if ($DryRun) {
     Note "1  snapshot: git rev, machine.lua, the lockfiles, your `$PROFILE, tool versions"
     Note "2  git pull --rebase --autostash"
     Note "3  re-wire: machine.lua, the nvim junction, the zellij config, the pwsh profile"
-    Note "4  winget upgrade, package by package ($($TermstackPackages.Count) of them)"
+    Note "4  winget, package by package: install what is missing, upgrade the rest ($($TermstackPackages.Count))"
     Note "5  nvim +Lazy! install / restore, if nvim/ changed in the pull"
     Note "6  verify, and roll back on its own if the verification fails"
 
@@ -167,6 +167,10 @@ if ($online) {
 
     Section "tools"
     Update-TermstackPackages
+    # Anything winget installed just now is on the registry PATH, not on this
+    # process's. The Neovim step below and the verification both ask
+    # `Get-Command`, and both would answer "not here" for a tool sitting on disk.
+    Update-ProcessPath
 
     # ---- 5. Neovim. With a gate: this is the expensive step. -------------
 
@@ -178,6 +182,11 @@ if ($online) {
         & git -C $repoDir diff --quiet $before $after -- nvim/ 2>$null
         $nvimChanged = ($LASTEXITCODE -ne 0)
     }
+
+    # A Neovim that the step above installed for the first time has no plugins at
+    # all: the pull-diff gate alone would skip it and leave LazyVim unbootstrapped
+    # until someone happened to open nvim by hand.
+    if ($script:TermstackInstalled -contains 'Neovim.Neovim') { $nvimChanged = $true }
 
     if ($nvimChanged) { Sync-NvimPlugins }
     else { Skip "nvim/ unchanged - not touching the plugins" }

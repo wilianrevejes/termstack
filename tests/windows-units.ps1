@@ -188,6 +188,68 @@ Check "the winget package list is shared and complete" {
     ($bootstrap -notmatch 'Install-IfMissing -Id "')
 }
 
+# The update is the one command per machine, and the list grows: a package added
+# after a machine was bootstrapped has to ARRIVE on the next update, not be
+# reported as up to date. Without `winget install` in there, it never does.
+Check "the update installs a package that is missing, not only upgrades" {
+    $common = [IO.File]::ReadAllText((Join-Path $repo 'scripts\_common-windows.ps1'))
+    $fn = [regex]::Match($common, '(?ms)^function Update-TermstackPackages \{.*?^\}').Value
+    $script:Detail = if ($fn) { 'Update-TermstackPackages no longer installs what is missing' } else { 'Update-TermstackPackages not found' }
+    ($fn -match 'winget install --id') -and
+    ($fn -match '\$script:TermstackInstalled') -and
+    # The gate that was wrong: its exit code answers "is it installed", never
+    # "is there an upgrade".
+    ($fn -notmatch 'list .*--upgrade-available')
+}
+
+# ---- winget's exit codes -------------------------------------------------
+
+# The two codes that are ANSWERS and not failures. Reading them as failures is
+# what made the update announce "up to date" for packages that had never been
+# installed -- and then never install them: a machine ran this stack for weeks
+# with no Zellij and no Neovim, and every update said everything was fine.
+Check "Get-WingetOutcome tells 'no upgrade' from 'not installed' from a real failure" {
+    ((Get-WingetOutcome 0) -eq 'ok') -and
+    ((Get-WingetOutcome -1978335189) -eq 'current') -and   # 0x8A15002B
+    ((Get-WingetOutcome -1978335212) -eq 'missing') -and   # 0x8A150014
+    ((Get-WingetOutcome 1) -eq 'failed')
+}
+
+# The names have to keep matching the codes: a typo in either constant turns a
+# current package into a warning and a missing one into a silent skip again.
+Check "the named winget codes are the documented ones" {
+    ($WingetNoUpgrade -eq -1978335189) -and
+    ($WingetNotInstalled -eq -1978335212)
+}
+
+# ---- the process PATH ----------------------------------------------------
+
+# It runs right after winget installed Neovim, with the plugin sync and the
+# whole verification still to come. It may only ADD: a replacement would drop
+# whatever this process carries that the registry does not, and take git or
+# winget itself down with it.
+Check "Update-ProcessPath only ever adds to PATH" {
+    $marker = Join-Path $sandbox 'only-in-this-process'
+    $env:PATH = "$marker;$env:PATH"
+    $before = @($env:PATH -split ';' | Where-Object { $_ })
+
+    Update-ProcessPath
+
+    $after = @($env:PATH -split ';' | Where-Object { $_ })
+    $dropped = @($before | Where-Object { $after -notcontains $_ })
+    $script:Detail = "dropped: " + ($dropped -join ', ')
+    ($dropped.Count -eq 0) -and ($after -contains $marker)
+}
+
+# setup calls it after the install and update calls it after the upgrades: on a
+# machine where nothing new landed, the second call must not keep growing PATH.
+Check "Update-ProcessPath is idempotent" {
+    Update-ProcessPath
+    $once = $env:PATH
+    Update-ProcessPath
+    $env:PATH -eq $once
+}
+
 # ---- name collisions -----------------------------------------------------
 
 # PowerShell resolves an ALIAS before a function, so `function Group {...}`

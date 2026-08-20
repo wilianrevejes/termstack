@@ -47,7 +47,7 @@ function Install-IfMissing {
         [Parameter(Mandatory = $true)][string] $Name
     )
 
-    winget list --id $Id --exact --accept-source-agreements *> $null
+    winget list --id $Id --exact --accept-source-agreements --disable-interactivity *> $null
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "==> $Name already installed"
@@ -71,8 +71,26 @@ function Install-IfMissing {
 # since v0.44), Neovim, and the tools LazyVim/the shell reach for. tmux and zsh
 # are Unix-only and are left to the separate Linux setup (scripts/setup.sh, run
 # inside WSL).
+#
+# One package that fails must not take the other twelve with it. `throw` aborted
+# the whole loop, and setup-windows.ps1 then gives up before it wires anything at
+# all -- so a single winget hiccup left the machine with no configs either. The
+# names are collected and reported here; the verification step is what decides
+# whether the stack is usable.
+$failed = @()
 foreach ($p in $TermstackPackages) {
-    Install-IfMissing -Id $p.Id -Name $p.Name
+    try {
+        Install-IfMissing -Id $p.Id -Name $p.Name
+    } catch {
+        $failed += $p.Name
+        Write-Host "==> WARNING: $($_.Exception.Message)"
+    }
+}
+
+if ($failed.Count -gt 0) {
+    Write-Host ""
+    Write-Host "==> Did not install: $($failed -join ', ')"
+    Write-Host "==> Install those by hand and run this again; the rest is set up."
 }
 
 $machine = Join-Path $repoDir "machine.lua"

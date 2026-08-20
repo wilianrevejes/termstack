@@ -159,6 +159,31 @@ function Invoke-Timed {
     return $p.ExitCode
 }
 
+# A process reads PATH once, when it starts. winget writes the new entries into
+# the registry and broadcasts a change that only NEW processes pick up -- so
+# right after installing Neovim, `Get-Command nvim` fails inside the very script
+# that installed it. That is what silently skipped the LazyVim bootstrap on
+# every fresh machine, and what made the closing checks report tools that were
+# sitting right there.
+#
+# Append-only, never a replacement: this process may carry entries that exist
+# nowhere in the registry, and dropping them halfway through would break the
+# commands that come after.
+function Update-ProcessPath {
+    $have = @($env:PATH -split ';' | Where-Object { $_ })
+    foreach ($scope in @('Machine', 'User')) {
+        $stored = [Environment]::GetEnvironmentVariable('Path', $scope)
+        if (-not $stored) { continue }
+        foreach ($dir in ($stored -split ';')) {
+            if (-not $dir) { continue }
+            if ($have -notcontains $dir) {
+                $env:PATH = "$env:PATH;$dir"
+                $have += $dir
+            }
+        }
+    }
+}
+
 # ---- Config wiring -------------------------------------------------------
 
 # Absolute pwsh path (pwsh 7 first, then Windows PowerShell) with forward
@@ -304,33 +329,97 @@ $TermstackPackages = @(
     @{ Id = 'zig.zig';                      Name = 'zig (C compiler)' }
 )
 
+# winget answers in HRESULTs, and two of them are ANSWERS rather than failures:
+# 0x8A150014 is "no such package is installed here" and 0x8A15002B is "there is
+# nothing newer to install". Anything else is a real problem.
+$WingetNotInstalled = -1978335212   # 0x8A150014
+$WingetNoUpgrade    = -1978335189   # 0x8A15002B
+
+# The verdict of a `winget upgrade` from its exit code alone. Pure, so the suite
+# can pin the two codes that must never be read as a failure.
+function Get-WingetOutcome {
+    param([int] $ExitCode)
+    if ($ExitCode -eq 0)                   { return 'ok' }
+    if ($ExitCode -eq $WingetNoUpgrade)    { return 'current' }
+    if ($ExitCode -eq $WingetNotInstalled) { return 'missing' }
+    return 'failed'
+}
+
 # `winget upgrade --all` would drag every unrelated program on the machine
-# along. This upgrades the stack and nothing else, and asks first: `winget list
-# --upgrade-available` exits 0 only when there IS one, so a package that is
-# already current never runs an installer.
+# along. This walks the list above and nothing else.
+#
+# It INSTALLS what is missing, and does not only upgrade. The list grows --
+# Zellij and Neovim joined it long after the first machines were bootstrapped --
+# and an update that only upgrades leaves those machines without the new tools
+# for good. That is not hypothetical: it is how a machine ends up running this
+# stack with no multiplexer and no editor.
+#
+# The gate used to be the exit code of `winget list --upgrade-available`, which
+# answers "is this package INSTALLED", not "is there an upgrade": an installed,
+# current package exits 0 (while printing "No installed package found"), and an
+# absent one exits 0x8A150014. Read as an upgrade check it was wrong in both
+# directions -- "up to date" for a package that had never been installed, and a
+# pointless upgrade on every current one, whose 0x8A15002B then came back out as
+# "upgrade it by hand".
+#
+# What was installed here lands in $script:TermstackInstalled: a Neovim that
+# arrived a second ago has no plugins at all, and the caller has to know.
 function Update-TermstackPackages {
+    $script:TermstackInstalled = @()
+
     if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-        Warn "winget missing - skipping the tool upgrades"
+        Warn "winget missing - skipping the tools"
         return
     }
 
     foreach ($p in $TermstackPackages) {
-        winget list --id $p.Id --exact --upgrade-available `
+        # Plain `list`: "is it installed" is the question this exit code really
+        # answers, and the only one it answers reliably.
+        winget list --id $p.Id --exact `
             --accept-source-agreements --disable-interactivity *> $null
 
-        if ($LASTEXITCODE -ne 0) { Skip "$($p.Name) up to date"; continue }
+        if ($LASTEXITCODE -ne 0) {
+            Run "installing $($p.Name)"
+            # Visible, unlike the upgrade below: a first install is the long
+            # download, and silence there reads as a hang.
+            winget install --id $p.Id --exact --silent `
+                --accept-package-agreements --accept-source-agreements --disable-interactivity
 
-        Run "upgrading $($p.Name)"
+            if ($LASTEXITCODE -eq 0) {
+                Ok "$($p.Name) installed"
+                $script:TermstackInstalled += $p.Id
+            } else {
+                Warn "$($p.Name): winget exited $LASTEXITCODE - install it by hand"
+            }
+            continue
+        }
+
+        Run "checking $($p.Name)"
+
+        # Captured, and shown only when it went wrong: `winget upgrade` prints
+        # "No available upgrade found" for every current package, and thirteen
+        # copies of that bury the one line that matters.
+        $log = [IO.Path]::GetTempFileName()
         winget upgrade --id $p.Id --exact --silent `
-            --accept-package-agreements --accept-source-agreements --disable-interactivity
+            --accept-package-agreements --accept-source-agreements --disable-interactivity *> $log
 
-        if ($LASTEXITCODE -eq 0) {
+        $rc = $LASTEXITCODE
+        $outcome = Get-WingetOutcome $rc
+
+        if ($outcome -eq 'ok') {
             Ok "$($p.Name) upgraded"
+        } elseif ($outcome -eq 'current') {
+            Skip "$($p.Name) up to date"
         } else {
             # Not fatal: an installer that refuses --silent is a nuisance, not a
             # broken machine, and the rest of the update still has to run.
-            Warn "$($p.Name): winget exited $LASTEXITCODE - upgrade it by hand"
+            Warn "$($p.Name): winget exited $rc - upgrade it by hand"
+            foreach ($line in @(Get-Content $log -ErrorAction SilentlyContinue | Select-Object -Last 3)) {
+                if ("$line".Trim()) { Note "$line" }
+            }
         }
+
+        Remove-Item $log -ErrorAction SilentlyContinue
     }
 }
 
